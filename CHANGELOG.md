@@ -1,3 +1,10 @@
+## [1.36.4](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.36.3...v1.36.4) (2025-10-08)
+
+
+### Bug Fixes
+
+* improve error handling for organization retrieval when host is provided ([aaeae7a](https://github.com/CoCreate-app/CoCreate-crud-server/commit/aaeae7a3e7af2fc3039275e4cb480e31686521bb))
+
 ## [1.36.3](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.36.2...v1.36.3) (2025-09-01)
 
 
