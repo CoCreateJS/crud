@@ -107,7 +107,6 @@ export async function init(Server) {
                 try {
                     const driverModule = await import(importPath);
                     providers[provider] = driverModule.default || driverModule;
-                    console.log(`[@cocreate/crud-server] Storage provider successfully registered: "${provider}" via ${importPath}`);
                 } catch (err) {
                     console.error(`[@cocreate/crud-server] Failed to dynamically load database driver "${importPath}" for provider "${provider}":`, err);
                 }
@@ -132,7 +131,6 @@ export async function init(Server) {
                     wsManager.on(action, (data) => send(data));
                 }
             }
-            console.log('[@cocreate/crud-server] Socket listeners successfully registered via wsManager.');
         } else {
             // Check back in 500ms if the socket server is still resolving its connection handshake
             setTimeout(bindSocketListeners, 500);
