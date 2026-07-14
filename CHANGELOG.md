@@ -1,3 +1,15 @@
+## [1.36.5](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.36.4...v1.36.5) (2026-07-14)
+
+
+### Bug Fixes
+
+* remove unnecessary console logs in init function for cleaner output ([d117235](https://github.com/CoCreate-app/CoCreate-crud-server/commit/d117235ade6687ca3d0d3aa5fee0e73a6b70dfb4))
+* removed post install ([7925526](https://github.com/CoCreate-app/CoCreate-crud-server/commit/7925526070819bdd52eb342cd4c2f50e833afffb))
+* semantic version handling. Reorganize .gitignore for improved clarity and structure ([ef31939](https://github.com/CoCreate-app/CoCreate-crud-server/commit/ef319399b78eafddde3b1e47a21343ffe76424e6))
+* update module export to ES6 syntax in release.config.js ([c550e3d](https://github.com/CoCreate-app/CoCreate-crud-server/commit/c550e3d09533b14ff3489e78e680507ebbe64735))
+* update organization_id assignment in init function for correct server configuration ([2ac9f3d](https://github.com/CoCreate-app/CoCreate-crud-server/commit/2ac9f3dc57552cf6821f6b7aefb45f4dc23fc615))
+* update package.json and refactor index.js for module compatibility ([03f7447](https://github.com/CoCreate-app/CoCreate-crud-server/commit/03f7447bd2a395191593f3d5362fed19b08fa931))
+
 ## [1.36.4](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.36.3...v1.36.4) (2025-10-08)
 
 
