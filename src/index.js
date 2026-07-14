@@ -84,7 +84,7 @@ export async function init(Server) {
     }
 
     if (config.organization_id) {
-        Server.config.organization_id = config.organization_id;
+        Server.organization_id = config.organization_id;
     } else {
         console.log('[@cocreate/crud-server] Could not find the organization_id');
     }
