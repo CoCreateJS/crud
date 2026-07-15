@@ -33,8 +33,6 @@
   "dependencies": {
     "@cocreate/config": "^1.13.1",
     "@cocreate/socket-server": "^1.31.1",
-    "@cocreate/utils": "^1.39.0",
-    "csvtojson": "^2.0.10",
-    "json-2-csv": "^3.10.3"
+    "@cocreate/utils": "^1.39.0"
   }
 }
