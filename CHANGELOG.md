@@ -1,3 +1,15 @@
+# [1.37.0](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.36.5...v1.37.0) (2026-07-17)
+
+
+### Bug Fixes
+
+* remove unused dependencies from package.json ([4669a10](https://github.com/CoCreate-app/CoCreate-crud-server/commit/4669a10c8b30fdedb3e6bf4d84f76da0aa2b44d8))
+
+
+### Features
+
+* update automated workflow and release configuration for improved semantic release handling ([984eed3](https://github.com/CoCreate-app/CoCreate-crud-server/commit/984eed3507d460375a0036df358b8223bef22093))
+
 ## [1.36.5](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.36.4...v1.36.5) (2026-07-14)
 
 

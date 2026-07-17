@@ -1,6 +1,6 @@
 {
   "name": "@cocreate/crud-server",
-  "version": "1.36.4",
+  "version": "1.37.0",
   "description": "CoCreate-crud-server",
   "keywords": [
     "cocreate-crud",
@@ -17,7 +17,8 @@
   },
   "scripts": {
     "demo": "PORT=5000 node demo/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"  },
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "type": "module",
   "main": "./src/index.js",
   "repository": {
