@@ -1,3 +1,10 @@
+## [1.37.2](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.37.1...v1.37.2) (2026-07-19)
+
+
+### Bug Fixes
+
+* set default branch to main ([4c130f4](https://github.com/CoCreate-app/CoCreate-crud-server/commit/4c130f449c0d17c3abef7e97ceed05e66ba63463))
+
 ## [1.37.1](https://github.com/CoCreate-app/CoCreate-crud-server/compare/v1.37.0...v1.37.1) (2026-07-17)
 
 
