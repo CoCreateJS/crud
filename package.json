@@ -1,16 +1,28 @@
 {
   "name": "@cocreate/crud-server",
   "version": "1.37.2",
-  "description": "CoCreate-crud-server",
+  "description": "High-performance, multi-tenant server-side CRUD orchestration engine supporting parallel multi-database writing, real-time sync, and tenant-isolated data routing across 20+ database engines.",
   "keywords": [
-    "cocreate-crud",
-    "low-code",
-    "realtime",
-    "realtime-framework",
-    "collaboration",
-    "shared-editing",
-    "html5-framework",
-    "javascript-framework"
+    "multi-database",
+    "parallel-writing",
+    "distributed-database",
+    "database-router",
+    "multi-tenant-crud",
+    "realtime-sync",
+    "mongodb",
+    "postgresql",
+    "mysql",
+    "dynamodb",
+    "firestore",
+    "sqlite",
+    "cockroachdb",
+    "mariadb",
+    "oracle-db",
+    "timescaledb",
+    "planetscale",
+    "turso",
+    "ferretdb",
+    "redshift"
   ],
   "publishConfig": {
     "access": "public"
