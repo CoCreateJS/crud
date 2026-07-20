@@ -53,7 +53,7 @@ export async function init(Server) {
         wsManager = Server.wsManager;
     }
 
-    config = await Config({
+    config = await Config.request({
         'organization_id': { prompt: 'Enter your organization_id: ' },
         'storage': {
             prompt: 'Enter a friendly name for the new storage (e.g., primary): ',
