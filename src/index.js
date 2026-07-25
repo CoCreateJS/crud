@@ -23,9 +23,12 @@
 
 import { ObjectId, sortData } from "@cocreate/utils";
 import Config from '@cocreate/config';
+import mongodb from '@cocreate/mongodb';
 
 // In-process memory caches and storage registers (strictly module-internal)
-const providers = {}; 
+const providers = {
+    mongodb
+}; 
 const organizations = {}; 
 const hosts = {};         
 let config = null;
@@ -96,23 +99,23 @@ export async function init(Server) {
     }
 
     // Dynamically import and register drivers configured on the server
-    if (config.storage && providers) {
-        for (const [friendlyName, storageConfig] of Object.entries(config.storage)) {
-            const { provider } = storageConfig;
+    // if (config.storage && providers) {
+    //     for (const [friendlyName, storageConfig] of Object.entries(config.storage)) {
+    //         const { provider } = storageConfig;
             
-            if (provider) {
-                // Convention over Configuration: fallback to @cocreate/provider if explicit import is omitted
-                const importPath = storageConfig.import || `@cocreate/${provider}`;
+    //         if (provider) {
+    //             // Convention over Configuration: fallback to @cocreate/provider if explicit import is omitted
+    //             const importPath = storageConfig.import || `@cocreate/${provider}`;
                 
-                try {
-                    const driverModule = await import(importPath);
-                    providers[provider] = driverModule.default || driverModule;
-                } catch (err) {
-                    console.error(`[@cocreate/crud-server] Failed to dynamically load database driver "${importPath}" for provider "${provider}":`, err);
-                }
-            }
-        }
-    }
+    //             try {
+    //                 const driverModule = await import(importPath);
+    //                 providers[provider] = driverModule.default || driverModule;
+    //             } catch (err) {
+    //                 console.error(`[@cocreate/crud-server] Failed to dynamically load database driver "${importPath}" for provider "${provider}":`, err);
+    //             }
+    //         }
+    //     }
+    // }
 
     // Deferred WebSocket Listener Auto-Registration
     const bindSocketListeners = () => {
