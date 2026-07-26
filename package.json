@@ -45,7 +45,6 @@
   "homepage": "https://cocreate.app/docs/CoCreate-crud-server",
   "dependencies": {
     "@cocreate/config": "^1.14.3",
-    "@cocreate/mongodb": "^1.25.3",
     "@cocreate/utils": "^1.44.3"
   }
 }
