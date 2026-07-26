@@ -21,14 +21,57 @@
 // you must obtain a commercial license from CoCreate LLC.
 // For details, visit <https://cocreate.app/licenses/> or contact us at sales@cocreate.app.
 
-import { ObjectId, sortData } from "@cocreate/utils";
 import Config from '@cocreate/config';
-import mongodb from '@cocreate/mongodb';
+import { ObjectId, sortData } from "@cocreate/utils";
 
-// In-process memory caches and storage registers (strictly module-internal)
+import amazonRedshift from '@cocreate/amazon-redshift';
+import auroradb from '@cocreate/auroradb';
+import cockroachdb from '@cocreate/cockroachdb';
+import cosmosdb from '@cocreate/cosmosdb';
+import documentdb from '@cocreate/documentdb';
+import dqlite from '@cocreate/dqlite';
+import dynamodb from '@cocreate/dynamodb';
+import ferretdb from '@cocreate/ferretdb';
+import firestore from '@cocreate/firestore';
+import mariadb from '@cocreate/mariadb';
+import mongodb from '@cocreate/mongodb';
+import mysql from '@cocreate/mysql';
+import oracledb from '@cocreate/oracledb';
+import planetscale from '@cocreate/planetscale';
+import postgresql from '@cocreate/postgresql';
+import qdrant from '@cocreate/qdrant';
+import rqlite from '@cocreate/rqlite';
+import sqlite from '@cocreate/sqlite';
+import tidb from '@cocreate/tidb';
+import timescaledb from '@cocreate/timescaledb';
+import turso from '@cocreate/turso';
+import yugabytedb from '@cocreate/yugabytedb';
+
 const providers = {
-    mongodb
-}; 
+    "amazon-redshift": amazonRedshift,
+    auroradb,
+    cockroachdb,
+    cosmosdb,
+    documentdb,
+    dqlite,
+    dynamodb,
+    ferretdb,
+    firestore,
+    mariadb,
+    mongodb,
+    mysql,
+    oracledb,
+    planetscale,
+    postgresql,
+    qdrant,
+    rqlite,
+    sqlite,
+    tidb,
+    timescaledb,
+    turso,
+    yugabytedb
+};
+
 const organizations = {}; 
 const hosts = {};         
 let config = null;
