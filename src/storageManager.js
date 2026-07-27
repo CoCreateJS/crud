@@ -186,28 +186,31 @@ function getOrCreateOrgRegistry(organizationId) {
  * Resolves or spawns a dedicated Worker thread for a given organization and driver bundle.
  *
  * @param {string} organizationId - Organization identifier
- * @param {string} cleanKey - Normalized driver provider key
+ * @param {string} driverKey - Normalized driver provider key
  * @param {string} bundleFileName - Webpack bundle filename in dist/
  * @returns {Worker} Active Worker thread instance
  */
-function getOrCreateWorker(organizationId, cleanKey, bundleFileName) {
+function getOrCreateWorker(organizationId, driverKey, bundleFileName) {
     const orgRegistry = getOrCreateOrgRegistry(organizationId);
 
-    if (orgRegistry.workers.has(cleanKey)) {
-        return orgRegistry.workers.get(cleanKey);
+    if (orgRegistry.workers.has(driverKey)) {
+        return orgRegistry.workers.get(driverKey);
     }
 
-    // Resolve path to bundled driver worker file
-    const bundlePath = path.resolve(__dirname, "../dist", bundleFileName);
+    // Check .storages directory in process.cwd() first for whitelisted drivers, fallback to dist/
+    const storagesPath = path.resolve(process.cwd(), ".storages", bundleFileName);
+    const distPath = path.resolve(__dirname, "../dist", bundleFileName);
+
+    const bundlePath = fs.existsSync(storagesPath) ? storagesPath : distPath;
 
     if (!fs.existsSync(bundlePath)) {
-        throw new Error(`Compiled worker bundle missing for driver "${cleanKey}" at expected location: ${bundlePath}. Ensure @cocreate/storage-bundler build has executed.`);
+        throw new Error(`Compiled worker bundle missing for driver "${driverKey}" at expected location: ${bundlePath}. Ensure @cocreate/storage-bundler build has executed.`);
     }
 
-    console.log(`[StorageManager] Spawning isolated Worker thread for driver "${cleanKey}" (Org: ${organizationId})`);
+    console.log(`[StorageManager] Spawning isolated Worker thread for driver "${driverKey}" (Org: ${organizationId}) from ${bundlePath}`);
 
     const worker = new Worker(bundlePath, {
-        workerData: { organizationId, driverKey: cleanKey }
+        workerData: { organizationId, driverKey: driverKey }
     });
 
     // Handle messages returned from the worker thread
@@ -230,7 +233,7 @@ function getOrCreateWorker(organizationId, cleanKey, bundleFileName) {
 
     // Handle unexpected worker errors
     worker.on("error", (err) => {
-        console.error(`[StorageManager] Worker thread crash for driver "${cleanKey}" (Org: ${organizationId}):`, err);
+        console.error(`[StorageManager] Worker thread crash for driver "${driverKey}" (Org: ${organizationId}):`, err);
 
         // Reject all pending requests assigned to this worker
         for (const [reqId, deferred] of orgRegistry.pendingRequests.entries()) {
@@ -239,18 +242,18 @@ function getOrCreateWorker(organizationId, cleanKey, bundleFileName) {
         }
 
         orgRegistry.pendingRequests.clear();
-        orgRegistry.workers.delete(cleanKey);
+        orgRegistry.workers.delete(driverKey);
     });
 
     // Handle worker unexpected exit
     worker.on("exit", (code) => {
         if (code !== 0) {
-            console.warn(`[StorageManager] Worker isolate for "${cleanKey}" exited unexpectedly with code ${code}. Cleaning up registry.`);
+            console.warn(`[StorageManager] Worker isolate for "${driverKey}" exited unexpectedly with code ${code}. Cleaning up registry.`);
         }
-        orgRegistry.workers.delete(cleanKey);
+        orgRegistry.workers.delete(driverKey);
     });
 
-    orgRegistry.workers.set(cleanKey, worker);
+    orgRegistry.workers.set(driverKey, worker);
     return worker;
 }
 
@@ -327,17 +330,17 @@ async function executeCustomInRAM(scriptString, queryData) {
 /**
  * Resolves a database driver strategy for a given organization request.
  * - Whitelisted drivers are routed to isolated Worker thread pools running pre-bundled code.
- * - Non-whitelisted custom drivers fetch remote JS strings directly into RAM without disk persistence.
+ * - Non-whitelisted custom drivers fetch provider path into RAM without disk persistence.
  *
  * @param {Object} data - Request payload containing driver/provider details
  * @returns {Promise<Object>} Resolved driver strategy metadata and handle
  */
 async function resolveDriver(data) {
-    const driverKey = (data.provider || data.driver || data.storage || "").trim();
+    const driverKey = (data.storageConfig?.provider || "").trim();
     const organizationId = data.organization_id;
 
     if (!driverKey) {
-        throw new Error("Missing required 'provider' or 'driver' parameter in storage request payload.");
+        throw new Error("Missing required 'storageConfig.provider' parameter in storage request payload.");
     }
 
     if (!organizationId) {
@@ -346,15 +349,12 @@ async function resolveDriver(data) {
 
     const orgRegistry = getOrCreateOrgRegistry(organizationId);
 
-    // Normalize driver key (case-insensitive and strip optional '@cocreate/' scope)
-    const cleanKey = driverKey.toLowerCase().replace(/^@cocreate\//, "");
-
     // =========================================================================
     // CASE A: Whitelisted Native Core Driver (Worker Thread Isolate)
     // =========================================================================
-    if (DRIVER_WHITELIST.has(cleanKey)) {
-        const bundleFileName = DRIVER_WHITELIST.get(cleanKey);
-        const worker = getOrCreateWorker(organizationId, cleanKey, bundleFileName);
+    if (DRIVER_WHITELIST.has(driverKey)) {
+        const bundleFileName = DRIVER_WHITELIST.get(driverKey);
+        const worker = getOrCreateWorker(organizationId, driverKey, bundleFileName);
 
         return {
             isWhitelisted: true,
@@ -367,9 +367,11 @@ async function resolveDriver(data) {
     // =========================================================================
     // CASE B: Un-whitelisted Custom Driver (Fetch Provider Path into RAM)
     // =========================================================================
+    // 1. IN-MEMORY RAM CACHE CHECK: Retrieve cached JavaScript bundle string from memory
     let scriptString = orgRegistry.customDriverScripts.get(driverKey);
 
     if (!scriptString) {
+        // 2. REMOTE FETCH: Fetch custom driver directly into RAM (Zero disk lookups)
         let fetchUrl = driverKey;
 
         // If explicit location/path fields are passed, construct full URL
@@ -379,10 +381,10 @@ async function resolveDriver(data) {
             throw new Error(`Custom provider "${driverKey}" is not whitelisted and is not a valid HTTP/HTTPS URL.`);
         }
 
-        // Fetch raw script string into RAM (NEVER written to disk)
+        // Fetch raw script string into RAM
         scriptString = await fetchCustomDriverScript(fetchUrl);
 
-        // Cache purely in memory for the lifetime of the connected organization
+        // Cache in memory for the lifetime of the connected organization
         orgRegistry.customDriverScripts.set(driverKey, scriptString);
     }
 
@@ -402,14 +404,14 @@ async function resolveDriver(data) {
  * @param {Object} data - Incoming query and database payload
  * @returns {Promise<Object>} Execution result payload
  */
-export async function executeStorageStrategy(data) {
+export async function send(data) {
     try {
         const resolution = await resolveDriver(data);
 
         // Emit telemetry event for monitoring resource utilization
         process.emit("usage", {
             type: "storage_exec",
-            provider: data.provider || data.driver,
+            provider: data.storageConfig?.provider,
             organization_id: data.organization_id
         });
 
@@ -423,13 +425,13 @@ export async function executeStorageStrategy(data) {
             return await executeCustomInRAM(resolution.scriptString, data);
         }
 
-        throw new Error(`Unable to execute strategy for driver: ${data.provider || data.driver}`);
+        throw new Error(`Unable to execute strategy for driver: ${data.storageConfig?.provider}`);
     } catch (error) {
         console.error(`[StorageManager] Strategy execution error for Org ${data.organization_id}:`, error);
 
         const errorDetail = {
             message: error.message || error,
-            storage: data.provider || data.driver || "unknown"
+            storage: data.storageConfig?.provider || "unknown"
         };
 
         if (Array.isArray(data.error)) {
@@ -442,8 +444,10 @@ export async function executeStorageStrategy(data) {
     }
 }
 
-export {
+const StorageManager = {
+    send,
     DRIVER_WHITELIST,
-    resolveDriver,
-    activeOrgRegistries
+    resolveDriver
 };
+
+export default StorageManager;

@@ -52,12 +52,6 @@ export async function init(Server) {
         }
     }
 
-    if (config.organization_id) {
-        Server.organization_id = config.organization_id;
-    } else {
-        console.log('[@cocreate/crud-server] Could not find the organization_id');
-    }
-
     if (!storageUrl) {
         console.log(`[@cocreate/crud-server] Could not find a connection url in your primary storage: "${firstStorageKey || 'default'}"`);
     }
@@ -281,11 +275,15 @@ export async function send(data) {
                     }
 
                     for (let j = 0; j < storage.url.length; j++) {
-                        data['storageName'] = data.storage[i];
+                        data['storageName'] = storage.provider;
                         data['storageUrl'] = storage.url[j];
+                        data['storageConfig'] = {
+                            provider: storage.provider,
+                            url: storage.url[j]
+                        }
 
                         // DYNAMIC EXECUTION: Handled dynamically via StorageManager Worker Pool
-                        data = await storageManager.send(storage.provider, data);
+                        data = await storageManager.send(data);
                     }
 
                     if (data.$filter) {
@@ -304,6 +302,7 @@ export async function send(data) {
 
             delete data.storageUrl;
             delete data.storageName;
+            delete data.storageConfig;
 
             if (data.socket && wsManager) {
                 if (data.organization_id === config.organization_id && data.socket.organization_id !== data.organization_id) {
