@@ -20,7 +20,7 @@ import fs from "node:fs";
 import { Worker } from "node:worker_threads";
 import Config from "@cocreate/config";
 
-const STORAGE_DIR = path.resolve(process.cwd(), ".storage");
+const STORAGE_DIR = path.resolve(process.cwd(), ".storages");
 
 /**
  * Identifier of the Primary Database worker/driver.
@@ -272,7 +272,7 @@ function getOrCreateWorker(driverKey, options = {}) {
         return activeWorkers.get(driverKey);
     }
 
-    console.log(`[StorageManager] Spawning worker isolate with universal harness for driver "${driverKey}"`);
+    console.log(`[StorageManager] Spawning worker isolate for driver "${driverKey}"`);
 
     const worker = new Worker(UNIVERSAL_WORKER_HARNESS_CODE, {
         eval: true,
@@ -444,7 +444,7 @@ async function resolveDriver(data) {
     const host = driverConfig.host || cachedServerConfig.host || data.host;
 
     if (!host) {
-        throw new Error(`Unable to resolve host endpoint for provider "${driverKey}". Driver file not present in .storage/ and host not defined in server_configs.`);
+        throw new Error(`Unable to resolve host endpoint for provider "${driverKey}". Driver file not present in .storage/ and host not defined in servers_config.`);
     }
 
     const scriptString = await fetchDriverScript(host, scriptPath, organizationId);
