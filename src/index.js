@@ -23,7 +23,7 @@ export async function init(Server) {
         wsManager = Server.wsManager;
     }
 
-    config = await Config.request({
+    config = await Config.prompt({
         'organization_id': { prompt: 'Enter your organization_id: ' },
         'storage': {
             prompt: 'Enter a friendly name for the new storage (e.g., primary): ',
@@ -90,7 +90,6 @@ export async function init(Server) {
                 delete hosts[host];
             }
         }
-        storageManager.removeOrganization(organization_id);
     });
 
     return crudServer;
