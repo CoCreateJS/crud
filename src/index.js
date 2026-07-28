@@ -274,9 +274,8 @@ export async function send(data) {
                     }
 
                     for (let j = 0; j < storage.url.length; j++) {
-                        data['storageName'] = storage.provider;
-                        data['storageUrl'] = storage.url[j];
                         data['storageConfig'] = {
+                            name: data.storage[i],
                             provider: storage.provider,
                             url: storage.url[j]
                         }
@@ -299,14 +298,14 @@ export async function send(data) {
                 }
             }
 
-            delete data.storageUrl;
-            delete data.storageName;
             delete data.storageConfig;
 
+            // TODO: allow all messages to go to socket. 
+            // But first socket needs a subscribe so we do 
+            // not message thrash each client
             if (data.socket && wsManager) {
                 if (data.organization_id === config.organization_id && data.socket.organization_id !== data.organization_id) {
-                    wsManager.send({
-                        config: {
+                    wsManager.send({config: {
                             organization_id: config.organization_id,
                         }
                     }, { ...data });
