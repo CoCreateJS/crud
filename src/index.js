@@ -1,20 +1,92 @@
+/********************************************************************************
+ * Copyright (C) 2026 CoCreate and Contributors.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ ********************************************************************************/
+
+import path from 'node:path';
 import Config from '@cocreate/config';
 import { ObjectId, sortData } from "@cocreate/utils";
-import storageManager from './storageManager.js';
+import GetOrganizationModule, { getOrganization } from './getOrganization.js';
 
-
-const organizations = {}; 
-const hosts = {};         
+const drivers = new Map(); // In-memory runtime cache for loaded storage driver instances
 let config = null;
 let initialized = false;  
 let wsManager = null;
 
+/**
+ * Returns the active server configuration object.
+ * @returns {Object|null} Server runtime configuration.
+ */
+export function getConfig() {
+    return config;
+}
+
 const crudServer = {
     init,
     send,
-    getOrganization
+    getConfig,
+    getOrganization,
+    getDriver,
+    drivers // Exposed driver registry scope
 };
 
+// Initialize getOrganization with the crudServer instance context
+GetOrganizationModule.init(crudServer);
+
+export { getOrganization, GetOrganizationModule };
+
+/**
+ * Resolves and caches database drivers dynamically from .storages/${provider}.js.
+ * Loaded instances persist in runtime memory for instant re-use across queries.
+ * 
+ * @param {string} provider - Storage provider name (e.g. 'mongodb')
+ * @returns {Promise<Object>} Resolved storage driver instance
+ */
+export async function getDriver(provider) {
+    if (drivers.has(provider)) {
+        return drivers.get(provider);
+    }
+
+    try {
+        const driverPath = path.resolve(process.cwd(), '.storages', `${provider}.js`);
+        const module = await import(driverPath);
+        
+        let driver = module.default || module;
+        if (typeof driver === 'function') {
+            try {
+                driver = new driver();
+            } catch (e) {
+                // Keep pure function if constructor fails
+            }
+        }
+
+        drivers.set(provider, driver);
+        console.log(`[@cocreate/crud-server] Loaded and cached driver for provider "${provider}"`);
+        return driver;
+    } catch (err) {
+        console.error(`[@cocreate/crud-server] Failed to dynamically import driver for provider "${provider}":`, err.message);
+        throw err;
+    }
+}
+
+/**
+ * Initializes the CrudServer module, prompts for configuration, and binds socket listeners.
+ * 
+ * @param {Object} Server - CoCreateServer instance context
+ * @returns {Promise<Object>} Initialized CrudServer module instance
+ */
 export async function init(Server) {
     if (initialized) return crudServer;
     initialized = true;
@@ -82,102 +154,16 @@ export async function init(Server) {
 
     bindSocketListeners();
 
-    // Hook into global organization teardown event to drain sockets and terminate idle workers
-    process.on('orgDeleted', (organization_id) => {
-        delete organizations[organization_id];
-        for (const host in hosts) {
-            if (hosts[host] === organization_id) {
-                delete hosts[host];
-            }
-        }
-    });
-
     return crudServer;
 }
 
 /**
- * Local cached tenant configuration analyzer.
- * Incorporates high-efficiency local V8 Promise coalescing alongside cross-process workerStorage checks.
+ * Main CRUD payload dispatcher.
+ * Resolves organization context, determines target storage driver, and executes query.
+ * 
+ * @param {Object} data - Request query payload
+ * @returns {Promise<Object>} Processed response payload
  */
-export async function getOrganization(data) {
-    if (hosts[data.host]) {
-        return await hosts[data.host];
-    } else if (organizations[data.organization_id]) {
-        return await organizations[data.organization_id];
-    } else {
-        if (data.organization_id) {
-            organizations[data.organization_id] = getOrg(data);
-            organizations[data.organization_id] = await organizations[data.organization_id];
-            return organizations[data.organization_id];
-        } else if (data.host) {
-            hosts[data.host] = await getOrg(data);
-            return hosts[data.host];
-        }
-    }
-}
-
-/**
- * Database-level organization retriever.
- */
-async function getOrg(data) {
-    let query = {
-        method: 'object.read',
-        host: data.host,
-        database: config.organization_id,
-        array: 'organizations',
-        organization_id: config.organization_id
-    };
-
-    if (organizations[data.organization_id]) {
-        data.database = data.organization_id = data.organization_id;
-    }
-
-    if (data.organization_id) {
-        query.object = [{ _id: data.organization_id }];
-    } else if (data.host) {
-        query.$filter = {
-            query: { host: { $elemMatch: { name: { $in: [data.host] } } } },
-            limit: 1
-        };
-    } else {
-        return { serverOrganization: false, error: 'An organization could not be found' };
-    }
-
-    if (!organizations[query.organization_id] && query.organization_id === config.organization_id) {
-        organizations[query.organization_id] = { ...config, isConfig: true };
-    }
-
-    let organization = await send(query);
-
-    if (organization && organization.object && organization.object[0]) {
-        if (!organizations[organization.object[0]._id] || organizations[query.organization_id].isConfig) {
-            organizations[organization.object[0]._id] = organization.object[0];
-
-            delete query.$filter;
-            query.database = query.organization_id = organization.object[0]._id;
-            let org = await send(query);
-            if (org && org.object && org.object[0]) {
-                if (data.host) {
-                    hosts[data.host] = org.object[0];
-                }
-                return org.object[0];
-            } else {
-                if (data.host) return hosts[data.host];
-                return {
-                    serverOrganization: false,
-                    error: "An organization could not be found in the specified dbUrl"
-                };
-            }
-        } else {
-            if (data.host) {
-                hosts[data.host] = organization.object[0];
-            }
-            return organization.object[0];
-        }
-    }
-    return { serverOrganization: false, error: 'An organization could not be found' };
-}
-
 export async function send(data) {
     return new Promise(async (resolve) => {
         try {
@@ -278,10 +264,16 @@ export async function send(data) {
                             name: data.storage[i],
                             provider: storage.provider,
                             url: storage.url[j]
-                        }
+                        };
 
-                        // DYNAMIC EXECUTION: Handled dynamically via StorageManager Worker Pool
-                        data = await storageManager.send(data);
+                        // Dynamically load driver from .storages/${provider}.js and cache in runtime memory
+                        const driver = await getDriver(storage.provider);
+
+                        if (driver && typeof driver.send === 'function') {
+                            data = await driver.send(data);
+                        } else {
+                            throw new Error(`Storage driver for provider "${storage.provider}" does not implement a send() method.`);
+                        }
                     }
 
                     if (data.$filter) {
@@ -300,12 +292,10 @@ export async function send(data) {
 
             delete data.storageConfig;
 
-            // TODO: allow all messages to go to socket. 
-            // But first socket needs a subscribe so we do 
-            // not message thrash each client
             if (data.socket && wsManager) {
                 if (data.organization_id === config.organization_id && data.socket.organization_id !== data.organization_id) {
-                    wsManager.send({config: {
+                    wsManager.send({
+                        config: {
                             organization_id: config.organization_id,
                         }
                     }, { ...data });
