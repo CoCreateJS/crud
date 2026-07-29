@@ -19,6 +19,7 @@ import path from 'node:path';
 import Config from '@cocreate/config';
 import { ObjectId, sortData } from "@cocreate/utils";
 import GetOrganizationModule, { getOrganization } from './getOrganization.js';
+import MongoDB from '@cocreate/mongodb';
 
 const drivers = new Map(); // In-memory runtime cache for loaded storage driver instances
 let config = null;
@@ -33,12 +34,37 @@ export function getConfig() {
     return config;
 }
 
+/**
+ * Explicitly registers a pre-imported or custom storage driver instance into the runtime cache.
+ * 
+ * @param {string} provider - Storage provider name (e.g., 'mongodb')
+ * @param {Object|Function} driver - Driver module, instance, or class constructor
+ */
+export function registerDriver(provider, driver) {
+    if (!provider || !driver) return;
+    
+    let instance = driver;
+    if (typeof driver === 'function') {
+        try {
+            instance = new driver();
+        } catch (e) {
+            // Keep pure function or module if constructor fails
+        }
+    }
+    drivers.set(provider.toLowerCase(), instance);
+    console.log(`[@cocreate/crud-server] Registered static driver for provider "${provider}"`);
+}
+
+// Register default MongoDB driver instance into the runtime map
+registerDriver('mongodb', MongoDB);
+
 const crudServer = {
     init,
     send,
     getConfig,
     getOrganization,
     getDriver,
+    registerDriver,
     drivers // Exposed driver registry scope
 };
 
@@ -48,17 +74,44 @@ GetOrganizationModule.init(crudServer);
 export { getOrganization, GetOrganizationModule };
 
 /**
- * Resolves and caches database drivers dynamically from .storages/${provider}.js.
- * Loaded instances persist in runtime memory for instant re-use across queries.
+ * Resolves and caches database drivers dynamically or from static attachments.
+ * Priority:
+ *  1. In-memory `drivers` registry Map
+ *  2. Direct property attachment on CrudServer context (e.g., `crudServer.mongodb`)
+ *  3. Dynamic filesystem import from `.storages/${provider}.js`
  * 
  * @param {string} provider - Storage provider name (e.g. 'mongodb')
  * @returns {Promise<Object>} Resolved storage driver instance
  */
 export async function getDriver(provider) {
-    if (drivers.has(provider)) {
-        return drivers.get(provider);
+    if (!provider) {
+        throw new Error('[@cocreate/crud-server] Provider name must be provided to getDriver()');
     }
 
+    const key = provider.toLowerCase();
+
+    // 1. Check in-memory driver registry (statically imported or previously cached)
+    if (drivers.has(key)) {
+        return drivers.get(key);
+    }
+
+    // 2. Check if driver is directly attached as a property on crudServer (e.g., crudServer.mongodb or crudServer.MongoDB)
+    const attachedDriver = crudServer[key] || crudServer[provider];
+    if (attachedDriver) {
+        let instance = attachedDriver;
+        if (typeof instance === 'function') {
+            try {
+                instance = new instance();
+            } catch (e) {
+                // Keep as pure function or object
+            }
+        }
+        drivers.set(key, instance);
+        console.log(`[@cocreate/crud-server] Resolved driver "${provider}" from CrudServer scope attachment.`);
+        return instance;
+    }
+
+    // 3. Fallback: Dynamically import from .storages/${provider}.js
     try {
         const driverPath = path.resolve(process.cwd(), '.storages', `${provider}.js`);
         const module = await import(driverPath);
@@ -72,11 +125,11 @@ export async function getDriver(provider) {
             }
         }
 
-        drivers.set(provider, driver);
+        drivers.set(key, driver);
         console.log(`[@cocreate/crud-server] Loaded and cached driver for provider "${provider}"`);
         return driver;
     } catch (err) {
-        console.error(`[@cocreate/crud-server] Failed to dynamically import driver for provider "${provider}":`, err.message);
+        console.error(`[@cocreate/crud-server] Failed to resolve driver for provider "${provider}":`, err.message);
         throw err;
     }
 }
