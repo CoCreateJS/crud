@@ -18,7 +18,7 @@
 import Config from '@cocreate/config';
 import { sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
-import { getDriver, registerDriver, drivers } from './getDrivers.js';
+import { getDriver, registerDriver, drivers } from './getDriver.js';
 
 let config = null;
 let initialized = false;  
