@@ -1,6 +1,6 @@
 {
   "name": "@cocreate/crud-server",
-  "version": "1.38.0",
+  "version": "1.39.0",
   "description": "High-performance, multi-tenant server-side CRUD orchestration engine supporting parallel multi-database writing, real-time sync, and tenant-isolated data routing across 20+ database engines.",
   "keywords": [
     "multi-database",
