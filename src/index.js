@@ -15,13 +15,10 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  ********************************************************************************/
 
-import path from 'node:path';
-import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import Config from '@cocreate/config';
 import { sortData } from "@cocreate/utils";
-import GetOrganizationModule, { getOrganization } from './getOrganization.js';
-import GetDriverModule, { getDriver, registerDriver, drivers } from './getDriver.js';
+import GetOrganization from './getOrganization.js';
+import { getDriver, registerDriver, drivers } from './getDrivers.js';
 
 let config = null;
 let initialized = false;  
@@ -39,16 +36,14 @@ const crudServer = {
     init,
     send,
     getConfig,
-    getOrganization,
     getDriver,
     registerDriver,
     drivers
 };
 
-// Initialize getOrganization with the crudServer instance context
-GetOrganizationModule.init(crudServer);
-
-export { getOrganization, GetOrganizationModule, getDriver, registerDriver, drivers };
+// Initialize getOrganization with the crudServer instance context and export top-level
+export const getOrganization = GetOrganization.init(crudServer);
+crudServer.getOrganization = getOrganization;
 
 /**
  * Initializes the CrudServer module, prompts for config, and binds socket listeners.
@@ -236,8 +231,8 @@ export async function send(data) {
                             url: storage.url[j]
                         };
 
-                        // Dynamically resolve driver from process.cwd()/.storages or installer
-                        const driver = await getDriver(storage.provider, data.organization_id, data.host, crudServer);
+                        // Dynamically resolve driver from memory cache or local process.cwd()/.storages
+                        const driver = await getDriver(storage.provider);
 
                         if (driver && typeof driver.send === 'function') {
                             data = await driver.send(data);

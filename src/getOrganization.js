@@ -17,11 +17,11 @@
 
 export class GetOrganization {
     constructor() {
-        this.server = null;
+        this.crud = null;
         this.organizations = {}; 
         this.hosts = {};         
 
-        // Hook into global organization teardown event to cleanup organization cache
+        // Hook into global organization teardown event to cleanup cache
         process.on('orgDeleted', (organization_id) => {
             delete this.organizations[organization_id];
             for (const host in this.hosts) {
@@ -33,29 +33,21 @@ export class GetOrganization {
     }
 
     /**
-     * Binds the server / CrudServer instance to this module.
-     * @param {Object} server - Server or CrudServer context instance.
-     * @returns {GetOrganization} Self instance.
+     * Binds the crudServer instance context.
+     * @param {Object} crud - CrudServer context instance.
+     * @returns {Function} Bound getOrganization function.
      */
-    init(server) {
-        this.server = server;
-        return this;
+    init(crud) {
+        this.crud = crud;
+        return (data) => this.getOrganization(data);
     }
 
     /**
      * Local cached tenant configuration analyzer.
-     * Incorporates high-efficiency local V8 Promise coalescing.
-     * Supports getOrganization(data) or getOrganization(server, data).
+     * @param {Object} data - Request payload containing host or organization_id
+     * @returns {Promise<Object>} Organization context or error
      */
-    async getOrganization(data, payload) {
-        let serverInstance = this.server;
-
-        // Support passing server instance directly as first argument if needed
-        if (data && (typeof data.send === 'function' || typeof data.getConfig === 'function')) {
-            serverInstance = data;
-            data = payload;
-        }
-
+    async getOrganization(data) {
         if (!data) {
             return { serverOrganization: false, error: 'No request payload provided' };
         }
@@ -66,25 +58,26 @@ export class GetOrganization {
             return await this.organizations[data.organization_id];
         } else {
             if (data.organization_id) {
-                this.organizations[data.organization_id] = this.getOrg(data, serverInstance);
+                this.organizations[data.organization_id] = this.getOrg(data);
                 this.organizations[data.organization_id] = await this.organizations[data.organization_id];
                 return this.organizations[data.organization_id];
             } else if (data.host) {
-                this.hosts[data.host] = await this.getOrg(data, serverInstance);
+                this.hosts[data.host] = await this.getOrg(data);
                 return this.hosts[data.host];
             }
         }
+
+        return { serverOrganization: false, error: 'An organization could not be found' };
     }
 
     /**
      * Database-level organization retriever.
      */
-    async getOrg(data, customServerInstance) {
-        const activeServer = customServerInstance || this.server;
-        
-        const config = typeof activeServer?.getConfig === 'function' 
-            ? activeServer.getConfig() 
-            : (activeServer?.config || null);
+    async getOrg(data) {
+        const crud = this.crud;
+        const config = typeof crud?.getConfig === 'function' 
+            ? crud.getConfig() 
+            : (crud?.config || null);
 
         if (!config) {
             return { serverOrganization: false, error: 'Server configuration not initialized' };
@@ -117,9 +110,9 @@ export class GetOrganization {
             this.organizations[query.organization_id] = { ...config, isConfig: true };
         }
 
-        let sendFn = typeof activeServer?.send === 'function' ? activeServer.send.bind(activeServer) : null;
+        let sendFn = typeof crud?.send === 'function' ? crud.send.bind(crud) : null;
         if (!sendFn) {
-            return { serverOrganization: false, error: 'Send method not available on server instance' };
+            return { serverOrganization: false, error: 'Send method not available on CRUD instance' };
         }
 
         let organization = await sendFn(query);
@@ -156,4 +149,3 @@ export class GetOrganization {
 
 const getOrganizationInstance = new GetOrganization();
 export default getOrganizationInstance;
-export const getOrganization = (data, payload) => getOrganizationInstance.getOrganization(data, payload);
