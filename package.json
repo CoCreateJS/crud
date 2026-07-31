@@ -44,7 +44,7 @@
   },
   "homepage": "https://cocreate.app/docs/CoCreate-crud-server",
   "dependencies": {
-    "@cocreate/config": "^1.17.0",
-    "@cocreate/utils": "^1.50.0"
+    "@cocreate/config": "^1.19.0",
+    "@cocreate/utils": "^1.52.0"
   }
 }
