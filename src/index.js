@@ -13,6 +13,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
  ********************************************************************************/
 
 import Config from '@cocreate/config';
@@ -20,44 +21,28 @@ import { sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
 import { getDriver, registerDriver, drivers } from './getDriver.js';
 
+let server = null;
 let config = null;
 let initialized = false;  
 let wsManager = null;
+let getOrganization = null;
+let crudServer = null;
 
 /**
- * Returns the active server configuration object.
- * @returns {Object|null} Server runtime configuration.
- */
-export function getConfig() {
-    return config;
-}
-
-const crudServer = {
-    init,
-    send,
-    getConfig,
-    getDriver,
-    registerDriver,
-    drivers
-};
-
-// Initialize getOrganization with the crudServer instance context and export top-level
-export const getOrganization = GetOrganization.init(crudServer);
-crudServer.getOrganization = getOrganization;
-
-/**
- * Initializes the CrudServer module, prompts for config, and binds socket listeners.
+ * Initializes the CrudServer module, prompts/loads configuration, and binds socket listeners.
  * Drivers are resolved strictly on demand during send() query dispatch.
  * 
  * @param {Object} Server - CoCreateServer instance context
- * @returns {Promise<Object>} Initialized CrudServer module instance
+ * @returns {Promise<Object>} Initialized CrudServer module API instance
  */
 export async function init(Server) {
     if (initialized) return crudServer;
     initialized = true;
 
-    if (Server && Server.wsManager) {
-        wsManager = Server.wsManager;
+    server = Server || null;
+
+    if (server && server.wsManager) {
+        wsManager = server.wsManager;
     }
 
     config = await Config.prompt({
@@ -97,9 +82,20 @@ export async function init(Server) {
         process.exit(1);
     }
 
+    crudServer = {
+        config,
+        send,
+        getDriver,
+        registerDriver,
+        drivers
+    };
+
+    getOrganization = GetOrganization.init(crudServer);
+    crudServer.getOrganization = getOrganization;
+
     const bindSocketListeners = () => {
-        if (!wsManager && Server && Server.wsManager) {
-            wsManager = Server.wsManager;
+        if (!wsManager && server && server.wsManager) {
+            wsManager = server.wsManager;
         }
 
         if (wsManager) {
@@ -129,7 +125,7 @@ export async function init(Server) {
  * @param {Object} data - Request query payload
  * @returns {Promise<Object>} Processed response payload
  */
-export async function send(data) {
+async function send(data) {
     return new Promise(async (resolve) => {
         try {
             if (!data.organization_id || !config) {
@@ -285,4 +281,11 @@ export async function send(data) {
     });
 }
 
-export default crudServer;
+export default {
+    init,
+    config,
+    send,
+    getDriver,
+    registerDriver,
+    drivers
+};
