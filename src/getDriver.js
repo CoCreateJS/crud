@@ -30,11 +30,28 @@ export const drivers = new Map();
  * Maps specific databases (e.g., CosmosDB, MariaDB) to their actual underlying wrapper/driver.
  */
 const PROVIDER_ALIASES = {
-    'mariadb': 'mysql',
-    'cosmosdb': 'mongodb',
-    'cockroachdb': 'postgresql',
-    'aurora': 'postgresql'
-    // Add additional database engine mappings as needed
+    "amazon-redshift": "amazon-redshift",
+    "auroradb": "postgresql",
+    "cockroachdb": "postgresql",
+    "cosmosdb": "mongodb",
+    "documentdb": "mongodb",
+    "dqlite": "sqlite",
+    "dynamodb": "dynamodb",
+    "ferretdb": "mongodb",
+    "firestore": "firestore",
+    "mariadb": "mysql",
+    "mongodb": "mongodb",
+    "mysql": "mysql",
+    "oracledb": "mongodb",
+    "planetscale": "mysql",
+    "postgresql": "postgresql",
+    "qdrant": "qdrant",
+    "rqlite": "sqlite",
+    "sqlite": "sqlite",
+    "tidb": "mysql",
+    "timescaledb": "postgresql",
+    "turso": "sqlite",
+    "yugabytedb": "postgresql"
 };
 
 /**
