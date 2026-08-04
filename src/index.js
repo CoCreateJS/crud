@@ -148,39 +148,6 @@ async function send(data) {
                 data['timeStamp'] = new Date().toISOString();
             }
 
-            if (data.array) {
-                if (!data.database) {
-                    data['database'] = data.organization_id;
-                }
-
-                if (data.method === 'object.update' && data.organization_id !== config.organization_id) {
-                    let syncKeys;
-                    if (data.array === 'organizations') {
-                        syncKeys = ['name', 'logo', 'storage', 'host'];
-                    } else if (data.array === 'userssss') {
-                        syncKeys = ['name', 'email', 'password', 'avatar'];
-                    }
-
-                    if (syncKeys && syncKeys.length) {
-                        let platformUpdate = {
-                            database: config.organization_id,
-                            array: data.array,
-                            object: [{}],
-                            organization_id: config.organization_id
-                        };
-
-                        let object = data.object[0] || data.object;
-                        if (object) {
-                            for (let key of syncKeys) {
-                                if (object[key]) {
-                                    platformUpdate.object[0][key] = object[key];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             if (organization.host) {
                 let host = organization.host;
                 let hostname = data.socket ? data.socket.host : data.host;
