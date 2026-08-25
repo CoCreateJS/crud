@@ -10,136 +10,134 @@ A high-performance, multi-tenant database orchestration and synchronization rout
 * [Supported Database Engines](#supported-database-engines)
 * [Installation](#installation)
 * [Usage](#usage)
-* [How it Works](#how-it-works)
-* [Architecture and Payload Specs](#architecture-and-payload-specs)
-* [Configuration Guidelines](#configuration-guidelines)
-* [How to Contribute](#how-to-contribute)
-* [License](#license)
+A high-performance, multi-tenant database orchestration and synchronization routing layer.
 
----
+This README focuses on the unified payload contract and practical examples so integrators immediately understand how to use the server-side CRUD router. The `@cocreate/crud-server` runtime accepts a single standardized payload object and routes it to the appropriate storage adapters (one or many) and transports (local drivers, remote sockets).
 
-## Features
+Summary
+- Single, unified payload contract drives all operations (`method` determines behavior).
+- Operates in multi-tenant mode using `organization_id` to scope execution.
+- Supports parallel write/read across multiple storage adapters via `storage` array.
 
-* **Parallel Multi-Database Execution:** Connects seamlessly to multiple storage endpoints simultaneously. Data mutation queries execute in parallel across all defined database engines for immediate multi-source consistency.
-* **Unified Object Architecture:** Send data once. A single, standardized data object schema abstractly targets and updates multiple heterogeneous databases in parallel, eliminating the need for database-specific query translation at the application layer.
-* **Multi-Tenant Isolation:** Dynamically maps connection strategies by checking unique incoming system `host` configurations or structural `organization_id` tracking elements.
-* **Dynamic Driver Pluggability:** Follows a convention-over-configuration strategy to load target database driver utilities lazily via asynchronous dynamic imports.
-* **V8 Coalescing Caching Engine:** Features an efficient, state-retaining in-memory pool for fast organization tracking, eliminating redundant disk I/O bottlenecks.
-* **Dual-Layer Communication Matrix:** Listens directly for transactional mutations across core function calls (`send()`) or updates data trees over real-time WebSockets using dedicated event hooks.
-* **Cross-Organization Synchronization:** Automatically intercepts administration-level document mutations to sync system properties instantly across tenant environments.
+Table of contents
+- Features
+- Installation
+- Quick start (server initialization)
+- Payload examples (common tasks)
+- WebSocket & transport patterns
+- Configuration & tips
+- Contributing
+- License
 
----
+Features
+- Unified object payload API for all CRUD operations.
+- Multi-tenant isolation by `organization_id`.
+- Parallel multi-storage execution when `storage` is an array.
+- Pluggable drivers via dynamic `import()`.
+- WebSocket integration for real-time actions and synchronization.
 
-## Supported Database Engines
-
-The server engine natively resolves external adapters across a wide variety of relational, NoSQL, vector, and distributed architectures using a single unified payload contract:
-
-| Relational & SQL | Cloud NoSQL & Document | Distributed & Edge | Specialized & OLAP |
-| :--- | :--- | :--- | :--- |
-| • MySQL<br>• PostgreSQL<br>• MariaDB<br>• OracleDB<br>• SQLite | • MongoDB<br>• Firestore<br>• DocumentDB<br>• FerretDB | • CockroachDB<br>• TiDB<br>• PlanetScale<br>• Turso<br>• YugabyteDB | • Amazon Redshift<br>• DynamoDB<br>• CosmosDB<br>• Qdrant *(Vector)*<br>• TimescaleDB *(Time-series)*<br>• Rqlite / Dqlite *(Distributed SQL)* |
-
----
-
-## Installation
-
+Installation
 ```bash
 npm install @cocreate/crud-server
 ```
 
----
-
-## Usage
-
-### Server Initialization
-
-Bind the CRUD controller during the initialization workflow of your core `CoCreateServer` context:
-
+Quick start — initialize during server bootstrap
 ```javascript
 import crudServer from '@cocreate/crud-server';
-import { CoCreateServer } from '@cocreate/server';
+import CoCreateServer from '@cocreate/server';
 
-// Boot the primary application server instance
-const serverContext = await CoCreateServer.start();
+const server = await CoCreateServer.start();
+await crudServer.init(server);
 
-// Initialize the stateless routing layer
-await crudServer.init(serverContext);
+// After init, you can call the router directly
+await crudServer.send({
+  organization_id: 'org1',
+  method: 'object.create',
+  array: 'users',
+  storage: 'mongodb',
+  object: [{ name: 'Alice', email: 'alice@example.com' }]
+});
 ```
 
-### Direct Programmatic CRUD Operations
+Core payload contract
+- `method` (String) — dot-notated action identifier, e.g. `object.create`, `object.read`, `object.update`, `array.list`.
+- `organization_id` (String) — tenant identifier (required for multi-tenant deployments).
+- `array` (String) — logical collection/table name.
+- `storage` (String | Array<String>) — named storage adapter(s) to target. When an array is supplied, the same payload runs in parallel against each matching driver.
+- `object` (Array<Object>) — document(s) for create/update/delete operations.
+- `$filter` (Object) — optional query, paging, sort and projection controls.
 
-Execute transactional database updates across configured engines via asynchronous queries using a single unified object:
+Examples — common operations
 
+Create
 ```javascript
-import crudServer from '@cocreate/crud-server';
-
-// This single unified payload object targets and writes to all matching drivers in parallel
-const payload = {
-  organization_id: "64b9a32e18f21bc56789abcd",
-  method: "object.update",
-  array: "users",
-  storage: ["primary-mongodb", "backup-postgresql"], // Invokes parallel driver execution
-  object: [{ _id: "75c2e12a45f91bd45123efab", status: "active" }]
-};
-
-const result = await crudServer.send(payload);
+await crudServer.send({
+  method: 'object.create',
+  organization_id: 'org1',
+  array: 'posts',
+  storage: 'mongodb',
+  object: [{ title: 'Hello', body: 'World' }]
+});
 ```
 
----
-
-## How it Works
-
-1. **Bootstrap & Driver Injection:** On start, the platform invokes `@cocreate/config` to prompt for missing environment variables, extracts storage configuration blocks, and dynamically pulls matching database driver modules sequentially via `import()`.
-2. **WebSocket Handshake Mapping:** If a real-time framework context is present, the server maps system scopes (`storage`, `database`, `array`, `index`, `object`) against mutations (`create`, `read`, `update`, `delete`), registering action event listeners over active socket networks.
-3. **Tenant Evaluation Pass:** For every action, `getOrganization()` evaluates incoming tracking tags against memory caches (`hosts` and `organizations`) to load tenant-specific connection rules.
-4. **Symmetrical Multi-Database Processing:** Loops through arrays provided inside the `data.storage` key. If an item matches several configured providers, the router breaks down the single unified object payload and routes it concurrently to each designated engine database in an asynchronous parallel loop (`await providers[storage.provider].send(data)`).
-5. **Data Formatting & Post-Processing:** Applies server-side filters, manages sorting array indices via utility methods, syncs sensitive profile updates between platform entities, and emits a global `crud-event` event before returning a response.
-
----
-
-## Architecture and Payload Specs
-
-### Unified Payload Object Schema
-
-The data engine relies heavily on structural, flat parameter objects passed down into the execution chain:
-
-| Field Element | Type | Role |
-| --- | --- | --- |
-| `organization_id` | `String` | **Required.** Targets the root tenant profile partition mapping to execution databases. |
-| `method` | `String` | Operational identifier following dot notations (e.g., `"object.read"`, `"array.update"`). |
-| `array` | `String` | Target database collection or sheet name context. |
-| `storage` | `String \| Array` | Specific storage adapter name(s). Pass an array of strings to invoke parallel execution across multiple targets. |
-| `object` | `Array<Object>` | Raw workspace target objects or tracking query arguments containing targeted IDs (`_id`). |
-| `$filter` | `Object` | Extra functional configuration object containing query criteria, array boundaries, limits, and sort constraints. |
-
----
-
-## Configuration Guidelines
-
-Upon launching the engine for the first time, your terminal context will request essential operational parameters via standard inputs if a local profile isn't active:
-
-```text
-Enter your organization_id: 64b9a32e18f21bc56789abcd
-Enter a friendly name for the new storage (e.g., primary): primary
-Enter the storage provider (e.g., mongodb): mongodb
-Enter the storage connection url: mongodb://localhost:27017/cocreate
+Read (with filter)
+```javascript
+const res = await crudServer.send({
+  method: 'object.read',
+  organization_id: 'org1',
+  array: 'users',
+  $filter: { query: { email: 'alice@example.com' }, limit: 1 }
+});
 ```
 
-> [!WARNING]
-> If a valid configuration URL (`url`) or an `organization_id` cannot be discovered on boot, the system outputs failure diagnostic metrics to the terminal and forcefully triggers a hard process kill state (`process.exit(1)`).
+Update (parallel to two storages)
+```javascript
+await crudServer.send({
+  method: 'object.update',
+  organization_id: 'org1',
+  array: 'users',
+  storage: ['mongodb','pgsql-backup'],
+  object: [{ _id: 'abc123', active: true }]
+});
+```
 
----
+Delete
+```javascript
+await crudServer.send({
+  method: 'object.delete',
+  organization_id: 'org1',
+  array: 'sessions',
+  object: [{ _id: 'session_xyz' }]
+});
+```
 
-## How to Contribute
+WebSocket / transport patterns
+- The client-side `@cocreate/crud-client` sends the same unified payload via `crud.send()` which will route the request locally (IndexedDB) and remotely via `crud.socket.send()`.
+- On the server, socket messages map directly into the same `crudServer.send(payload)` contract. This keeps the client and server API identical and stateless.
 
-We encourage contribution to our libraries (you might even score some nifty swag), please see our [CONTRIBUTING.md](https://github.com/CoCreate-app/CoCreate-crud-server/blob/master/CONTRIBUTING.md) guide for details. If you encounter any bugs or wish to make feature requests, please submit an issue on our [GitHub Issues](https://github.com/CoCreate-app/CoCreate-crud-server/issues) tracker. We want this library to be community-driven, and CoCreate led. We need your help to realize this goal.
+Example: sending an AI prompt to a Copilot plugin (convention)
+```javascript
+// client: send via crud.socket.send
+await crud.socket.send({
+  method: 'copilot.chat',
+  copilot: {
+    prompt: 'Generate a hero section',
+    organization_id: 'org1',
+    user_id: 'u1'
+  }
+});
 
-For broader system configurations and API guides, please visit our [CoCreate CRUD Server Documentation](https://cocreatejs.com/docs/crud-server).
+// server plugin receives payload and routes to AI engine
+// plugin will read payload.copilot and persist history using server.crud
+```
 
----
+Configuration & tips
+- Ensure `organization_id` is supplied for multi-tenant routing.
+- When targeting multiple storages use the `storage` array; the router runs each adapter in parallel and returns consolidated responses.
+- For long-running operations or streaming transports (AI sessions), implement plugin-level session tracking and persist conversation history via `server.crud` on the server side.
 
-## License
+Contributing
+Contributions are welcome. See CONTRIBUTING.md in the repo for guidance and tests.
 
-This software is dual-licensed under the GNU Affero General Public License version 3 (AGPLv3) and a commercial license.
-
-* **Open Source Use:** For open-source projects and non-commercial use, this software is available under the AGPLv3. For the full license text, see the LICENSE file.
-* **Commercial Use:** For-profit companies and individuals intending to use this software for commercial purposes must obtain a commercial license. The commercial license is available when you sign up for an API key on our website.
+License
+This software is dual-licensed under AGPLv3 and a commercial license. See the repository LICENSE file for details.
