@@ -65,7 +65,7 @@ Core payload contract
 - `array` (String) — logical collection/table name.
 - `storage` (String | Array<String>) — named storage adapter(s) to target. When an array is supplied, the same payload runs in parallel against each matching driver.
 - `object` (Array<Object>) — document(s) for create/update/delete operations.
-- `$filter` (Object) — optional query, paging, sort and projection controls.
+- `filter` (Object) — optional query, paging, sort and projection controls.
 
 Examples — common operations
 
@@ -86,7 +86,7 @@ const res = await crudServer.send({
   method: 'object.read',
   organization_id: 'org1',
   array: 'users',
-  $filter: { query: { email: 'alice@example.com' }, limit: 1 }
+  filter: { query: { email: 'alice@example.com' }, limit: 1 }
 });
 ```
 
