@@ -213,16 +213,16 @@ async function send(data) {
                         }
                     }
 
-                    if (data.$filter) {
+                    if (data.filter) {
                         let type = data.method.split(".")[0];
-                        if (data.$filter.sort && data.$filter.sort.length) {
-                            data[type] = sortData(data[type], data.$filter.sort);
+                        if (data.filter.sort && data.filter.sort.length) {
+                            data[type] = sortData(data[type], data.filter.sort);
                         }
-                        if (!data.$filter.index) {
-                            data.$filter.index = 0;
+                        if (!data.filter.index) {
+                            data.filter.index = 0;
                         }
-                        data.$filter.startingIndex = data.$filter.index;
-                        data.$filter.index += data[type].length;
+                        data.filter.startingIndex = data.filter.index;
+                        data.filter.index += data[type].length;
                     }
                 }
             }

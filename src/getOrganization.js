@@ -98,7 +98,7 @@ export class GetOrganization {
         if (data.organization_id) {
             query.object = [{ _id: data.organization_id }];
         } else if (data.host) {
-            query.$filter = {
+            query.filter = {
                 query: { host: { $elemMatch: { name: { $in: [data.host] } } } },
                 limit: 1
             };
@@ -121,7 +121,7 @@ export class GetOrganization {
             if (!this.organizations[organization.object[0]._id] || this.organizations[query.organization_id]?.isConfig) {
                 this.organizations[organization.object[0]._id] = organization.object[0];
 
-                delete query.$filter;
+                delete query.filter;
                 query.database = query.organization_id = organization.object[0]._id;
                 let org = await sendFn(query);
                 if (org && org.object && org.object[0]) {
