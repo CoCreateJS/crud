@@ -23,7 +23,7 @@ import { getDriver, registerDriver, drivers } from './getDriver.js';
 
 let server = null;
 let config = null;
-let initialized = false;  
+let initialized = false;
 let wsManager = null;
 let getOrganization = null;
 let crudServer = null;
@@ -47,6 +47,7 @@ export async function init(Server) {
 
     config = await Config.prompt({
         'organization_id': { prompt: 'Enter your organization_id: ' },
+        'host': { prompt: 'Enter your host: ' },
         'storage': {
             prompt: 'Enter a friendly name for the new storage (e.g., primary): ',
             variable: 'name'
@@ -66,7 +67,7 @@ export async function init(Server) {
         if (typeof config.storage === 'string') {
             config.storage = JSON.parse(config.storage);
         }
-        
+
         const storageKeys = Object.keys(config.storage);
         if (storageKeys.length > 0) {
             firstStorageKey = storageKeys[0];
@@ -131,6 +132,14 @@ async function send(data) {
             if (!data.organization_id || !config) {
                 data.error = 'Missing an organization_id';
                 return resolve(data);
+            }
+
+            if (
+                !data.host &&
+                !data.socket &&
+                data.organization_id === config.organization_id
+            ) {
+                data.host = config.host;
             }
 
             let organization = await getOrganization(data);
