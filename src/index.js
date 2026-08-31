@@ -20,6 +20,11 @@ import Config from '@cocreate/config';
 import { sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
 import { getDriver, registerDriver, drivers } from './getDriver.js';
+import { isPlatformArray } from './routing.js';
+import {
+    getStorage as resolveStorage,
+    sendBootstrap as executeBootstrap
+} from './getStorage.js';
 
 let server = null;
 let config = null;
@@ -86,6 +91,8 @@ export async function init(Server) {
     crudServer = {
         config,
         send,
+        getStorage,
+        sendBootstrap,
         getDriver,
         registerDriver,
         drivers
@@ -137,20 +144,20 @@ async function send(data) {
             if (
                 !data.host &&
                 !data.socket &&
-                data.organization_id === config.organization_id
+                data.organization_id === config.organization_id &&
+                !isPlatformArray(data.array)
             ) {
                 data.host = config.host;
+            }
+
+            if (data.organization_id === config.organization_id && isPlatformArray(data.array)) {
+                delete data.host
             }
 
             let organization = await getOrganization(data);
 
             if (organization.error) {
                 return resolve(organization);
-            }
-
-            let storages = organization.storage;
-            if (!storages) {
-                return resolve({ serverStorage: false, error: 'A storage url could not be found' });
             }
 
             if (!data['timeStamp']) {
@@ -171,36 +178,34 @@ async function send(data) {
                 }
             }
 
-            if (!data.storage || !data.storage.length) {
-                if (Array.isArray(storages)) {
-                    data.storage = storages[0].name;
-                } else if (typeof storages === 'object' && storages !== null) {
-                    data.storage = [Object.keys(storages)[0]];
-                }
+            // A host-specific database is honored above. Otherwise, keep each
+            // organization in its own database and avoid MongoDB's URI/test
+            // database fallback.
+            if (!data.database) {
+                data.database = data.organization_id;
             }
 
-            if (!Array.isArray(data.storage)) {
-                data.storage = [data.storage];
-            }
+            const storageNames = data.storage
+                ? (Array.isArray(data.storage) ? data.storage : [data.storage])
+                : [undefined];
 
-            for (let i = 0; i < data.storage.length; i++) {
-                let storage;
-                if (Array.isArray(storages)) {
-                    storage = storages.find((obj) => obj.name === data.storage[i]);
-                } else if (typeof storages === 'object' && storages !== null) {
-                    storage = storages[data.storage[i]];
-                }
+            for (let i = 0; i < storageNames.length; i++) {
+                const storage = await getStorage(
+                    organization,
+                    data.organization_id,
+                    storageNames[i]
+                );
 
                 if (storage && storage.provider) {
-                    if (!Array.isArray(storage.url)) {
-                        storage.url = [storage.url];
-                    }
+                    const storageUrls = Array.isArray(storage.url)
+                        ? storage.url
+                        : [storage.url];
 
-                    for (let j = 0; j < storage.url.length; j++) {
+                    for (let j = 0; j < storageUrls.length; j++) {
                         data['storageConfig'] = {
-                            name: data.storage[i],
+                            name: storage.name,
                             provider: storage.provider,
-                            url: storage.url[j]
+                            url: storageUrls[j]
                         };
 
                         // Dynamically resolve driver from memory cache or local process.cwd()/.storages
@@ -257,10 +262,30 @@ async function send(data) {
     });
 }
 
+/**
+ * Resolves the organization bootstrap storage or a named tenant API storage.
+ */
+async function getStorage(organization, organizationId, name) {
+    return await resolveStorage({
+        organization,
+        organizationId,
+        name
+    });
+}
+
+/**
+ * Executes an internal request against the configured bootstrap storage.
+ */
+async function sendBootstrap(data) {
+    return await executeBootstrap({ config, data });
+}
+
 export default {
     init,
     config,
     send,
+    getStorage,
+    sendBootstrap,
     getDriver,
     registerDriver,
     drivers
