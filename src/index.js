@@ -150,10 +150,6 @@ async function send(data) {
                 data.host = config.host;
             }
 
-            if (data.organization_id === config.organization_id && isPlatformArray(data.array)) {
-                delete data.host
-            }
-
             let organization = await getOrganization(data);
 
             if (organization.error) {
