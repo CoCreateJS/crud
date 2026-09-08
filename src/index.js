@@ -33,6 +33,48 @@ let wsManager = null;
 let getOrganization = null;
 let crudServer = null;
 
+export function getFilterCount(filter) {
+    if (!Array.isArray(filter?.storages) || !filter.storages.length)
+        return;
+
+    const datasets = new Map();
+
+    for (const metadata of filter.storages) {
+        if (
+            metadata?.database === undefined ||
+            metadata?.array === undefined ||
+            typeof metadata.count !== "number" ||
+            !Number.isFinite(metadata.count)
+        ) continue;
+
+        const key = JSON.stringify([metadata.database, metadata.array]);
+        const count = datasets.get(key);
+
+        if (count === undefined || metadata.count > count)
+            datasets.set(key, metadata.count);
+    }
+
+    let count = 0;
+    for (const datasetCount of datasets.values()) count += datasetCount;
+    return count;
+}
+
+function applyFilterMetadata(data, startingIndex) {
+    if (!data.filter) return;
+
+    const type = data.method.split(".")[0];
+    if (!Array.isArray(data[type])) return;
+
+    if (data.filter.sort?.length)
+        data[type] = sortData(data[type], data.filter.sort);
+
+    const count = getFilterCount(data.filter);
+    if (count !== undefined) data.filter.count = count;
+
+    data.filter.startingIndex = startingIndex;
+    data.filter.index = startingIndex + data[type].length;
+}
+
 /**
  * Initializes the CrudServer module, prompts/loads configuration, and binds socket listeners.
  * Drivers are resolved strictly on demand during send() query dispatch.
@@ -181,6 +223,9 @@ async function send(data) {
                 data.database = data.organization_id;
             }
 
+            const filterStartingIndex =
+                data.filter?.startingIndex ?? data.filter?.index ?? 0;
+
             const storageNames = data.storage
                 ? (Array.isArray(data.storage) ? data.storage : [data.storage])
                 : [undefined];
@@ -214,19 +259,10 @@ async function send(data) {
                         }
                     }
 
-                    if (data.filter) {
-                        let type = data.method.split(".")[0];
-                        if (data.filter.sort && data.filter.sort.length) {
-                            data[type] = sortData(data[type], data.filter.sort);
-                        }
-                        if (!data.filter.index) {
-                            data.filter.index = 0;
-                        }
-                        data.filter.startingIndex = data.filter.index;
-                        data.filter.index += data[type].length;
-                    }
                 }
             }
+
+            applyFilterMetadata(data, filterStartingIndex);
 
             delete data.storageConfig;
 
