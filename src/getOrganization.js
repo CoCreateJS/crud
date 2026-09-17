@@ -22,10 +22,13 @@ export class GetOrganization {
         this.hosts = {};         
 
         // Hook into global organization teardown event to cleanup cache
-        process.on('orgDeleted', (organization_id) => {
+        process.on('organization.evicted', (organization_id) => {
             delete this.organizations[organization_id];
             for (const host in this.hosts) {
-                if (this.hosts[host] === organization_id) {
+                if (
+                    this.hosts[host] === organization_id ||
+                    String(this.hosts[host]?._id) === String(organization_id)
+                ) {
                     delete this.hosts[host];
                 }
             }

@@ -160,11 +160,11 @@ function registerOrgDriverMapping(driverKey, organizationId) {
  * - Cancels in-flight requests for the organization.
  * - Terminates idle worker isolates when no active organizations remain (except primary DB).
  */
-async function handleOrgDeleted(payload) {
+async function handleOrganizationEvicted(payload) {
     const organizationId = typeof payload === "string" ? payload : payload?.organization_id || payload?.id;
     if (!organizationId) return;
 
-    console.log(`[StorageManager] Processing organization deletion lifecycle for Org "${organizationId}"...`);
+    console.log(`[StorageManager] Processing organization eviction lifecycle for Org "${organizationId}"...`);
 
     // 1. Dispatch TEARDOWN_ORG / orgDeleted to active database worker isolates and await completion
     const teardownPromises = [];
@@ -189,7 +189,7 @@ async function handleOrgDeleted(payload) {
     for (const [reqId, deferred] of pendingRequests.entries()) {
         if (deferred.organizationId === organizationId) {
             clearTimeout(deferred.timer);
-            deferred.reject(new Error(`Organization "${organizationId}" deleted while query was in flight.`));
+            deferred.reject(new Error(`Organization "${organizationId}" was evicted while query was in flight.`));
             pendingRequests.delete(reqId);
         }
     }
@@ -218,9 +218,8 @@ async function handleOrgDeleted(payload) {
     }
 }
 
-// Register process event listeners for organization deletion
-process.on("orgDeleted", handleOrgDeleted);
-process.on("organizationDeleted", handleOrgDeleted);
+// Register the runtime organization eviction lifecycle.
+process.on("organization.evicted", handleOrganizationEvicted);
 
 /**
  * Fetches a database driver script from host endpoint.
