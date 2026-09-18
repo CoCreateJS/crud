@@ -20,7 +20,7 @@ import fs from "node:fs";
 import { Worker } from "node:worker_threads";
 import Config from "@cocreate/config";
 
-const STORAGE_DIR = path.resolve(process.cwd(), ".storages");
+const STORAGE_DIR = path.resolve(process.cwd(), "storages");
 
 /**
  * Identifier of the Primary Database worker/driver.

@@ -19,8 +19,15 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-// Resolve .storages directory at application execution root (process.cwd())
-const STORAGE_DIR = path.resolve(process.cwd(), '.storages');
+const STORAGE_DIRS = [
+    process.env.COCREATE_STORAGE_DIR,
+    path.resolve(process.cwd(), 'storages'),
+    process.argv[1]
+        ? path.resolve(path.dirname(process.argv[1]), 'storages')
+        : null
+].filter((directory, index, directories) =>
+    directory && directories.indexOf(directory) === index
+);
 
 // In-memory runtime cache for loaded storage driver instances
 export const drivers = new Map();
@@ -87,7 +94,9 @@ function instantiateDriver(rawDriver) {
  */
 export async function importDriverModule(filePath) {
     const fileUrl = pathToFileURL(filePath).href;
-    const module = await import(fileUrl);
+    // Storage drivers are extracted at runtime and therefore cannot be
+    // resolved into a static build by webpack.
+    const module = await import(/* webpackIgnore: true */ fileUrl);
     const rawDriver = module.default || module;
     return instantiateDriver(rawDriver);
 }
@@ -118,7 +127,7 @@ export function registerDriver(provider, driver) {
 }
 
 /**
- * Resolves and returns a storage driver instance from memory cache or local .storages/ directory.
+ * Resolves and returns a storage driver instance from memory cache or a storages/ directory.
  * 
  * @param {string} provider - Storage provider name (e.g. 'mongodb', 'cosmosdb')
  * @returns {Promise<Object>} Resolved storage driver instance
@@ -139,10 +148,11 @@ export async function getDriver(provider) {
         return drivers.get(resolvedProvider);
     }
 
-    // 2. Check local disk in process.cwd()/.storages/${resolvedProvider}.js
-    const driverPath = path.join(STORAGE_DIR, `${resolvedProvider}.js`);
+    // 2. Check configured, application, and packaged storage directories.
+    for (const storageDirectory of STORAGE_DIRS) {
+        const driverPath = path.join(storageDirectory, `${resolvedProvider}.js`);
+        if (!fs.existsSync(driverPath)) continue;
 
-    if (fs.existsSync(driverPath)) {
         try {
             const driver = await importDriverModule(driverPath);
             registerDriver(key, driver);
@@ -154,7 +164,10 @@ export async function getDriver(provider) {
         }
     }
 
-    throw new Error(`[@cocreate/crud-server] Driver for provider "${provider}" (mapped to "${resolvedProvider}") was not found in ${STORAGE_DIR}`);
+    throw new Error(
+        `[@cocreate/crud-server] Driver for provider "${provider}" ` +
+        `(mapped to "${resolvedProvider}") was not found in: ${STORAGE_DIRS.join(', ')}`
+    );
 }
 
 export default getDriver;

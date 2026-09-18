@@ -107,7 +107,7 @@ export async function init(Server) {
         }
     });
 
-    let storageUrl;
+    let primaryStorage;
     let firstStorageKey;
 
     if (config.storage) {
@@ -115,20 +115,32 @@ export async function init(Server) {
             config.storage = JSON.parse(config.storage);
         }
 
-        const storageKeys = Object.keys(config.storage);
-        if (storageKeys.length > 0) {
-            firstStorageKey = storageKeys[0];
-            storageUrl = config.storage[firstStorageKey].url;
+        if (Array.isArray(config.storage)) {
+            primaryStorage = config.storage[0];
+            firstStorageKey = primaryStorage?.name;
+        } else if (config.storage.provider || config.storage.url) {
+            primaryStorage = config.storage;
+            firstStorageKey = config.storage.name;
+        } else {
+            const storageKeys = Object.keys(config.storage);
+            if (storageKeys.length > 0) {
+                firstStorageKey = storageKeys[0];
+                primaryStorage = config.storage[firstStorageKey];
+            }
         }
     }
 
-    if (!storageUrl) {
+    if (!primaryStorage?.url) {
         console.log(`[@cocreate/crud-server] Could not find a connection url in your primary storage: "${firstStorageKey || 'default'}"`);
     }
 
-    if (!storageUrl || !config.organization_id) {
+    if (!primaryStorage?.url || !primaryStorage?.provider || !config.organization_id) {
         process.exit(1);
     }
+
+    // Resolve the bootstrap driver before the server persists lifecycle state
+    // or forks workers. Other configured providers remain lazy-loaded.
+    await getDriver(primaryStorage.provider);
 
     crudServer = {
         config,
@@ -249,7 +261,7 @@ async function send(data) {
                             url: storageUrls[j]
                         };
 
-                        // Dynamically resolve driver from memory cache or local process.cwd()/.storages
+                        // Dynamically resolve the driver from memory or a packaged storages directory.
                         const driver = await getDriver(storage.provider);
 
                         if (driver && typeof driver.send === 'function') {
