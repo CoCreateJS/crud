@@ -260,7 +260,8 @@ async function send(data) {
                         data['storageConfig'] = {
                             name: storage.name,
                             provider: storage.provider,
-                            url: storageUrls[j]
+                            url: storageUrls[j],
+                            authToken: storage.authToken
                         };
 
                         // Dynamically resolve the driver from memory or a packaged storages directory.

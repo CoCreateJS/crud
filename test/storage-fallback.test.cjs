@@ -7,6 +7,7 @@ const read = file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8
 const context = vm.createContext({ getDriver: async () => { throw Error('Unexpected driver lookup'); } });
 vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), context);
 const resolveStorage = context.getStorage;
+const normalizeStorageCredentials = context.normalizeStorageCredentials;
 const index = read('index.js');
 const start = index.indexOf('                let storage = await getStorage(');
 const block = index.slice(start, index.indexOf('                if (storage && storage.provider)', start));
@@ -19,6 +20,21 @@ async function route(organization, data, config) {
 const config = { organization_id: 'platform', storage: { provider: 'mongodb', url: 'platform-url' } };
 test('missing tenant storage returns no result', async () => {
     assert.equal(await resolveStorage({ organization: {}, organizationId: 'tenant' }), undefined);
+});
+test('provider-facing credential names normalize to driver url configuration', () => {
+    assert.equal(normalizeStorageCredentials({ provider: 'mysql', connectionUri: 'mysql://database' }).url, 'mysql://database');
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(normalizeStorageCredentials({
+            provider: 'firestore', projectId: 'project', clientEmail: 'service@example.com', privateKey: 'private'
+        }).url)),
+        { projectId: 'project', clientEmail: 'service@example.com', privateKey: 'private' }
+    );
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(normalizeStorageCredentials({
+            provider: 'dynamodb', region: 'us-east-1', accessKeyId: 'access', secretAccessKey: 'secret'
+        }).url)),
+        { region: 'us-east-1', accessKeyId: 'access', secretAccessKey: 'secret' }
+    );
 });
 for (const host of ['platform.example.com', 'custom.example.com']) {
     test(`fallback forces tenant database regardless of host: ${host}`, async () => {

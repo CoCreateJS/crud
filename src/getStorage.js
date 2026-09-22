@@ -17,6 +17,27 @@
 
 import { getDriver } from "./getDriver.js";
 
+function normalizeStorageCredentials(storage) {
+    if (!storage || storage.url) return storage;
+
+    let url = storage.connectionUri || storage.databaseUrl;
+    if (storage.provider === "firestore") {
+        url = {
+            projectId: storage.projectId,
+            clientEmail: storage.clientEmail,
+            privateKey: storage.privateKey
+        };
+    } else if (storage.provider === "dynamodb") {
+        url = {
+            region: storage.region,
+            accessKeyId: storage.accessKeyId,
+            secretAccessKey: storage.secretAccessKey
+        };
+    }
+
+    return url ? { ...storage, url } : storage;
+}
+
 /**
  * Returns the tenant's bootstrap storage from its central organization record.
  */
@@ -54,7 +75,9 @@ export async function getStorage({ organization, organizationId, name }) {
         throw new Error("Missing an organization_id while resolving storage");
     }
 
-    const bootstrapStorage = getOrganizationStorage(organization);
+    const bootstrapStorage = normalizeStorageCredentials(
+        getOrganizationStorage(organization)
+    );
     if (!bootstrapStorage) return;
     if (!bootstrapStorage?.provider || !bootstrapStorage?.url) {
         throw new Error(
@@ -92,7 +115,7 @@ export async function getStorage({ organization, organizationId, name }) {
         storageConfig: bootstrapStorage
     });
 
-    const storage = response?.object?.[0];
+    const storage = normalizeStorageCredentials(response?.object?.[0]);
     if (!storage) {
         throw new Error(
             `Storage "${name}" was not found for organization "${organizationId}"`
