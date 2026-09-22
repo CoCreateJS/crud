@@ -95,7 +95,7 @@ export class GetOrganization {
         };
 
         if (this.organizations[data.organization_id]) {
-            data.database = data.organization_id = data.organization_id;
+            if (!data.database) data.database = data.organization_id;
         }
 
         if (data.organization_id) {

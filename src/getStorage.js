@@ -18,33 +18,6 @@
 import { getDriver } from "./getDriver.js";
 
 /**
- * Returns the server's bootstrap storage without mutating its configuration.
- * The bootstrap connection is used only to resolve tenant storage API records.
- */
-function getBootstrapStorage(config, name) {
-    const storages = config?.storage;
-
-    if (Array.isArray(storages)) {
-        const storage = name
-            ? storages.find((candidate) => candidate?.name === name)
-            : storages[0];
-        return storage ? { ...storage } : null;
-    }
-
-    if (storages && typeof storages === "object") {
-        if (storages.provider || storages.url) {
-            return { ...storages };
-        }
-        const [storageName, storage] = name
-            ? [name, storages[name]]
-            : (Object.entries(storages)[0] || []);
-        return storage ? { name: storageName, ...storage } : null;
-    }
-
-    return null;
-}
-
-/**
  * Returns the tenant's bootstrap storage from its central organization record.
  */
 function getOrganizationStorage(organization) {
@@ -67,29 +40,6 @@ function getOrganizationStorage(organization) {
 }
 
 /**
- * Executes an internal request directly against the server bootstrap storage.
- * This bypasses organization and tenant-storage resolution.
- */
-export async function sendBootstrap({ config, data }) {
-    const bootstrapStorage = getBootstrapStorage(config);
-    if (!bootstrapStorage?.provider || !bootstrapStorage?.url) {
-        throw new Error("The server bootstrap storage is not configured");
-    }
-
-    const bootstrapDriver = await getDriver(bootstrapStorage.provider);
-    if (!bootstrapDriver || typeof bootstrapDriver.send !== "function") {
-        throw new Error(
-            `Storage driver for bootstrap provider "${bootstrapStorage.provider}" does not implement a send() method.`
-        );
-    }
-
-    return await bootstrapDriver.send({
-        ...data,
-        storageConfig: bootstrapStorage
-    });
-}
-
-/**
  * Resolves the tenant bootstrap storage by default. Its assigned name resolves
  * directly; other names are resolved from the tenant's own `apis` collection.
  *
@@ -105,6 +55,7 @@ export async function getStorage({ organization, organizationId, name }) {
     }
 
     const bootstrapStorage = getOrganizationStorage(organization);
+    if (!bootstrapStorage) return;
     if (!bootstrapStorage?.provider || !bootstrapStorage?.url) {
         throw new Error(
             `Bootstrap storage is not configured for organization "${organizationId}"`

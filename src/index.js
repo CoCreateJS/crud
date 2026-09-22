@@ -21,10 +21,7 @@ import { sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
 import { getDriver, registerDriver, drivers } from './getDriver.js';
 import { isPlatformArray } from './routing.js';
-import {
-    getStorage as resolveStorage,
-    sendBootstrap as executeBootstrap
-} from './getStorage.js';
+import { getStorage as resolveStorage } from './getStorage.js';
 
 let server = null;
 let config = null;
@@ -146,7 +143,6 @@ export async function init(Server) {
         config,
         send,
         getStorage,
-        sendBootstrap,
         getDriver,
         registerDriver,
         drivers
@@ -221,7 +217,7 @@ async function send(data) {
                 for (let i = 0; i < host.length; i++) {
                     if (host[i].name === hostname) {
                         if (host[i].storage) data.storage = host[i].storage;
-                        if (host[i].database) data.database = host[i].database;
+                        if (!data.database && host[i].database) data.database = host[i].database;
                         if (host[i].array) data.array = host[i].array;
                         break;
                     }
@@ -243,11 +239,17 @@ async function send(data) {
                 : [undefined];
 
             for (let i = 0; i < storageNames.length; i++) {
-                const storage = await getStorage(
+                let storage = await getStorage(
                     organization,
                     data.organization_id,
                     storageNames[i]
                 );
+
+                if (!storage) {
+                    data.database = data.organization_id;
+                    storage = await getStorage(config, config.organization_id);
+                    if (!storage) throw new Error("Server storage is not configured");
+                }
 
                 if (storage && storage.provider) {
                     const storageUrls = Array.isArray(storage.url)
@@ -317,19 +319,11 @@ async function getStorage(organization, organizationId, name) {
     });
 }
 
-/**
- * Executes an internal request against the configured bootstrap storage.
- */
-async function sendBootstrap(data) {
-    return await executeBootstrap({ config, data });
-}
-
 export default {
     init,
     config,
     send,
     getStorage,
-    sendBootstrap,
     getDriver,
     registerDriver,
     drivers
