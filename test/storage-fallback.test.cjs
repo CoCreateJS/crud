@@ -8,12 +8,19 @@ const context = vm.createContext({ getDriver: async () => { throw Error('Unexpec
 vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), context);
 const resolveStorage = context.getStorage;
 const normalizeStorageCredentials = context.normalizeStorageCredentials;
+const fallbackModules = Promise.all([
+    import('../src/routing.js'),
+    import('../src/storageFallback.js')
+]);
 const index = read('index.js');
 const start = index.indexOf('                let storage = await getStorage(');
 const block = index.slice(start, index.indexOf('                if (storage && storage.provider)', start));
 async function route(organization, data, config) {
+    const [{ includesFileArray }, { resolveOrganizationStorageFallback }] = await fallbackModules;
     return vm.runInNewContext('(async () => {' + block + 'return storage;})()', {
         organization, data, config, storageNames: [undefined], i: 0,
+        includesFileArray,
+        resolveOrganizationStorageFallback,
         getStorage: (organization, organizationId, name) => resolveStorage({ organization, organizationId, name })
     });
 }
@@ -50,6 +57,34 @@ test('configured storage preserves explicitly requested database', async () => {
     const data = { organization_id: 'platform', database: 'new-tenant' };
     assert.equal((await route(config, data, config)).url, 'platform-url');
     assert.equal(data.database, 'new-tenant');
+});
+test('configured fallback can route tenants to a shared database', async () => {
+    const data = { organization_id: 'tenant' };
+    const fallbackConfig = {
+        ...config,
+        organizationStorageFallback: { database: 'shared-database' }
+    };
+    assert.equal((await route({}, data, fallbackConfig)).url, 'platform-url');
+    assert.equal(data.database, 'shared-database');
+});
+test('file fallback always keeps the tenant database', async () => {
+    const data = { organization_id: 'tenant', array: 'files' };
+    const fallbackConfig = {
+        ...config,
+        organizationStorageFallback: { database: 'shared-database' }
+    };
+    assert.equal((await route({}, data, fallbackConfig)).url, 'platform-url');
+    assert.equal(data.database, 'tenant');
+});
+test('configured fallback can be disabled', async () => {
+    const fallbackConfig = {
+        ...config,
+        organizationStorageFallback: false
+    };
+    await assert.rejects(
+        route({}, { organization_id: 'tenant' }, fallbackConfig),
+        /fallback is disabled/
+    );
 });
 test('invalid tenant storage still reports configuration error', async () => {
     await assert.rejects(route({storage: {provider:'mongodb'}}, {organization_id:'tenant'}, config), /not configured/);

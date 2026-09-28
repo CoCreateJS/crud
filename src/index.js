@@ -17,11 +17,15 @@
  ********************************************************************************/
 
 import Config from '@cocreate/config';
-import { sortData } from "@cocreate/utils";
+import { dotNotationToObject, sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
 import { getDriver, registerDriver, drivers } from './getDriver.js';
-import { isPlatformArray } from './routing.js';
+import { includesFileArray, isPlatformArray } from './routing.js';
 import { getStorage as resolveStorage } from './getStorage.js';
+import {
+    defaultOrganizationStorageFallback,
+    resolveOrganizationStorageFallback
+} from './storageFallback.js';
 
 let server = null;
 let config = null;
@@ -30,47 +34,38 @@ let wsManager = null;
 let getOrganization = null;
 let crudServer = null;
 
-export function getFilterCount(filter) {
-    if (!Array.isArray(filter?.storages) || !filter.storages.length)
-        return;
-
-    const datasets = new Map();
-
-    for (const metadata of filter.storages) {
-        if (
-            metadata?.database === undefined ||
-            metadata?.array === undefined ||
-            typeof metadata.count !== "number" ||
-            !Number.isFinite(metadata.count)
-        ) continue;
-
-        const key = JSON.stringify([metadata.database, metadata.array]);
-        const count = datasets.get(key);
-
-        if (count === undefined || metadata.count > count)
-            datasets.set(key, metadata.count);
+function normalizeOrganizationStorageFallback() {
+    let configuredStorageFallback = config.organizationStorageFallback;
+    if (typeof configuredStorageFallback === 'string') {
+        try {
+            configuredStorageFallback = JSON.parse(configuredStorageFallback);
+        } catch { }
     }
-
-    let count = 0;
-    for (const datasetCount of datasets.values()) count += datasetCount;
-    return count;
+    config.organizationStorageFallback = configuredStorageFallback ?? {
+        ...defaultOrganizationStorageFallback
+    };
 }
 
-function applyFilterMetadata(data, startingIndex) {
-    if (!data.filter) return;
+/**
+ * Merges module configuration and scoped platform database overrides over the
+ * bootstrap configuration loaded by Config.prompt().
+ */
+export async function loadCrudConfig() {
+    const systemConfig = Config.get('crud');
+    const databaseConfig = await Config.query({
+        type: 'crud',
+        organization_id: config.organization_id,
+        server: server?.host,
+        cluster: server?.cluster_id
+    }, crudServer);
 
-    const type = data.method.split(".")[0];
-    if (!Array.isArray(data[type])) return;
+    if (systemConfig) dotNotationToObject(systemConfig, config);
+    if (databaseConfig) dotNotationToObject(databaseConfig, config);
+    normalizeOrganizationStorageFallback();
 
-    if (data.filter.sort?.length)
-        data[type] = sortData(data[type], data.filter.sort);
-
-    const count = getFilterCount(data.filter);
-    if (count !== undefined) data.filter.count = count;
-
-    data.filter.startingIndex = startingIndex;
-    data.filter.index = startingIndex + data[type].length;
+    return config;
 }
+
 
 /**
  * Initializes the CrudServer module, prompts/loads configuration, and binds socket listeners.
@@ -103,6 +98,8 @@ export async function init(Server) {
             prompt: 'Enter the storage connection url: '
         }
     });
+
+    normalizeOrganizationStorageFallback();
 
     let primaryStorage;
     let firstStorageKey;
@@ -150,6 +147,8 @@ export async function init(Server) {
 
     getOrganization = GetOrganization.init(crudServer);
     crudServer.getOrganization = getOrganization;
+
+    await loadCrudConfig();
 
     const bindSocketListeners = () => {
         if (!wsManager && server && server.wsManager) {
@@ -246,8 +245,27 @@ async function send(data) {
                 );
 
                 if (!storage) {
-                    data.database = data.organization_id;
-                    storage = await getStorage(config, config.organization_id);
+                    const fallback = includesFileArray(data.array)
+                        ? {
+                            storage: undefined,
+                            database: data.organization_id
+                        }
+                        : resolveOrganizationStorageFallback(
+                            config,
+                            data.organization_id
+                        );
+                    if (!fallback) {
+                        throw new Error(
+                            `Storage is not configured for organization "${data.organization_id}" and organization storage fallback is disabled`
+                        );
+                    }
+
+                    data.database = fallback.database;
+                    storage = await getStorage(
+                        config,
+                        config.organization_id,
+                        fallback.storage
+                    );
                     if (!storage) throw new Error("Server storage is not configured");
                 }
 
@@ -318,6 +336,48 @@ async function getStorage(organization, organizationId, name) {
         organizationId,
         name
     });
+}
+
+export function getFilterCount(filter) {
+    if (!Array.isArray(filter?.storages) || !filter.storages.length)
+        return;
+
+    const datasets = new Map();
+
+    for (const metadata of filter.storages) {
+        if (
+            metadata?.database === undefined ||
+            metadata?.array === undefined ||
+            typeof metadata.count !== "number" ||
+            !Number.isFinite(metadata.count)
+        ) continue;
+
+        const key = JSON.stringify([metadata.database, metadata.array]);
+        const count = datasets.get(key);
+
+        if (count === undefined || metadata.count > count)
+            datasets.set(key, metadata.count);
+    }
+
+    let count = 0;
+    for (const datasetCount of datasets.values()) count += datasetCount;
+    return count;
+}
+
+function applyFilterMetadata(data, startingIndex) {
+    if (!data.filter) return;
+
+    const type = data.method.split(".")[0];
+    if (!Array.isArray(data[type])) return;
+
+    if (data.filter.sort?.length)
+        data[type] = sortData(data[type], data.filter.sort);
+
+    const count = getFilterCount(data.filter);
+    if (count !== undefined) data.filter.count = count;
+
+    data.filter.startingIndex = startingIndex;
+    data.filter.index = startingIndex + data[type].length;
 }
 
 export default {

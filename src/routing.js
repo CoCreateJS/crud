@@ -8,6 +8,7 @@
  ********************************************************************************/
 
 const platformArrays = new Set([
+    'organizations',
     'servers',
     'servers_usage',
     'servers_telemetry',
@@ -16,4 +17,9 @@ const platformArrays = new Set([
 
 export function isPlatformArray(array) {
     return platformArrays.has(array);
+}
+
+export function includesFileArray(array) {
+    return array === 'files' ||
+        (Array.isArray(array) && array.includes('files'));
 }

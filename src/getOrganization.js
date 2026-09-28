@@ -18,8 +18,8 @@
 export class GetOrganization {
     constructor() {
         this.crud = null;
-        this.organizations = {}; 
-        this.hosts = {};         
+        this.organizations = {};
+        this.hosts = {};
 
         // Hook into global organization teardown event to cleanup cache
         process.on('organization.evicted', (organization_id) => {
@@ -55,19 +55,31 @@ export class GetOrganization {
             return { serverOrganization: false, error: 'No request payload provided' };
         }
 
-        if (this.hosts[data.host]) {
-            return await this.hosts[data.host];
-        } else if (this.organizations[data.organization_id]) {
-            return await this.organizations[data.organization_id];
-        } else {
-            if (data.organization_id) {
-                this.organizations[data.organization_id] = this.getOrg(data);
-                this.organizations[data.organization_id] = await this.organizations[data.organization_id];
-                return this.organizations[data.organization_id];
-            } else if (data.host) {
-                this.hosts[data.host] = await this.getOrg(data);
-                return this.hosts[data.host];
+        if (data.host) {
+            if (!this.hosts[data.host]) {
+                this.hosts[data.host] = this.getOrg({
+                    ...data,
+                    organization_id: undefined
+                });
             }
+
+            const hostOrganization = await this.hosts[data.host];
+            if (
+                !data.organization_id ||
+                String(data.organization_id) === String(hostOrganization?._id)
+            ) {
+                return hostOrganization;
+            }
+        }
+
+        if (data.organization_id) {
+            if (!this.organizations[data.organization_id]) {
+                this.organizations[data.organization_id] = this.getOrg({
+                    ...data,
+                    host: undefined
+                });
+            }
+            return await this.organizations[data.organization_id];
         }
 
         return { serverOrganization: false, error: 'An organization could not be found' };
@@ -78,8 +90,8 @@ export class GetOrganization {
      */
     async getOrg(data) {
         const crud = this.crud;
-        const config = typeof crud?.getConfig === 'function' 
-            ? crud.getConfig() 
+        const config = typeof crud?.getConfig === 'function'
+            ? crud.getConfig()
             : (crud?.config || null);
 
         if (!config) {
@@ -88,7 +100,6 @@ export class GetOrganization {
 
         let query = {
             method: 'object.read',
-            host: data.host,
             database: config.organization_id,
             array: 'organizations',
             organization_id: config.organization_id

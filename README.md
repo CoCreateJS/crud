@@ -134,6 +134,8 @@ await crud.socket.send({
 Configuration & tips
 - Ensure `organization_id` is supplied for multi-tenant routing.
 - When targeting multiple storages use the `storage` array; the router runs each adapter in parallel and returns consolidated responses.
+- Bootstrap values are loaded through `Config.prompt`. Local configuration under `crud` is then merged over the bootstrap values, followed by scoped platform `servers_config` records with `type: "crud"`. Database configuration has the highest precedence.
+- `organizationStorageFallback` controls routing when an organization has no storage. Its optional `storage` names a platform storage; when omitted, the platform default is used. `database: "$organization_id"` keeps a database per tenant, while another string selects a literal shared database. Set the option to `false` to disable fallback. File requests retain host-owned routing and always use the platform default storage with the requesting organization database when storage fallback is needed.
 - For long-running operations or streaming transports (AI sessions), implement plugin-level session tracking and persist conversation history via `server.crud` on the server side.
 
 Contributing

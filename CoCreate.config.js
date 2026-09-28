@@ -2,6 +2,11 @@ export default {
     "organization_id": "",
     "key": "",
     "host": "",
+    "crud": {
+        "organizationStorageFallback": {
+            "database": "$organization_id"
+        }
+    },
     "sources": [
         {
             "array": "files",
