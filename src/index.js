@@ -88,21 +88,14 @@ export async function init(Server) {
         'organization_id': { prompt: 'Enter your organization_id: ' },
         'host': { prompt: 'Enter your host: ' },
         'storage': {
-            prompt: 'Enter a friendly name for the new storage (e.g., primary): ',
-            variable: 'name'
-        },
-        'storage.{{name}}.provider': {
-            prompt: 'Enter the storage provider (e.g., mongodb): '
-        },
-        'storage.{{name}}.url': {
-            prompt: 'Enter the storage connection url: '
+            prompt: 'Enter the bootstrap storage object as JSON (name, provider, and provider credentials): '
         }
     });
 
     normalizeOrganizationStorageFallback();
 
     let primaryStorage;
-    let firstStorageKey;
+    let bootstrapStorageName;
 
     if (config.storage) {
         if (typeof config.storage === 'string') {
@@ -111,24 +104,38 @@ export async function init(Server) {
 
         if (Array.isArray(config.storage)) {
             primaryStorage = config.storage[0];
-            firstStorageKey = primaryStorage?.name;
-        } else if (config.storage.provider || config.storage.url) {
+        } else if (config.storage.provider) {
             primaryStorage = config.storage;
-            firstStorageKey = config.storage.name;
         } else {
             const storageKeys = Object.keys(config.storage);
             if (storageKeys.length > 0) {
-                firstStorageKey = storageKeys[0];
-                primaryStorage = config.storage[firstStorageKey];
+                bootstrapStorageName = storageKeys[0];
+                primaryStorage = config.storage[bootstrapStorageName];
             }
         }
     }
 
-    if (!primaryStorage?.url) {
-        console.log(`[@cocreate/crud-server] Could not find a connection url in your primary storage: "${firstStorageKey || 'default'}"`);
+    // Resolve a blank local URL from the global config field by field. Reading
+    // the whole local storage object above does not merge nested global values.
+    const hasNativeCredentials = primaryStorage && (
+        primaryStorage.connectionString ||
+        primaryStorage.connectionUri ||
+        primaryStorage.databaseUrl ||
+        (primaryStorage.projectId && primaryStorage.clientEmail && primaryStorage.privateKey) ||
+        (primaryStorage.region && primaryStorage.accessKeyId && primaryStorage.secretAccessKey)
+    );
+    if (primaryStorage && !primaryStorage.url && !hasNativeCredentials) {
+        const path = bootstrapStorageName
+            ? `storage.${bootstrapStorageName}.url`
+            : "storage.url";
+        const resolved = await Config.prompt({ [path]: {} });
+        const url = bootstrapStorageName
+            ? resolved.storage?.[bootstrapStorageName]?.url
+            : resolved.storage?.url;
+        if (url) primaryStorage.url = url;
     }
 
-    if (!primaryStorage?.url || !primaryStorage?.provider || !config.organization_id) {
+    if (!primaryStorage?.provider || !config.organization_id) {
         process.exit(1);
     }
 
@@ -270,28 +277,16 @@ async function send(data) {
                 }
 
                 if (storage && storage.provider) {
-                    const storageUrls = Array.isArray(storage.url)
-                        ? storage.url
-                        : [storage.url];
+                    data.storageConfig = storage;
 
-                    for (let j = 0; j < storageUrls.length; j++) {
-                        data['storageConfig'] = {
-                            name: storage.name,
-                            provider: storage.provider,
-                            url: storageUrls[j],
-                            authToken: storage.authToken
-                        };
+                    // Each storage name resolves to one API record; the driver reads its own credentials.
+                    const driver = await getDriver(storage.provider);
 
-                        // Dynamically resolve the driver from memory or a packaged storages directory.
-                        const driver = await getDriver(storage.provider);
-
-                        if (driver && typeof driver.send === 'function') {
-                            data = await driver.send(data);
-                        } else {
-                            throw new Error(`Storage driver for provider "${storage.provider}" does not implement a send() method.`);
-                        }
+                    if (driver && typeof driver.send === 'function') {
+                        data = await driver.send(data);
+                    } else {
+                        throw new Error(`Storage driver for provider "${storage.provider}" does not implement a send() method.`);
                     }
-
                 }
             }
 

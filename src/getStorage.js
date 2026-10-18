@@ -17,21 +17,24 @@
 
 import { getDriver } from "./getDriver.js";
 
-function normalizeStorageCredentials(storage) {
+// Packaged storage drivers can still expect `url`. Keep their input compatible
+// while passing the complete record through to drivers that read native fields.
+function withLegacyUrl(storage) {
     if (!storage || storage.url) return storage;
 
-    let url = storage.connectionUri || storage.databaseUrl;
-    if (storage.provider === "firestore") {
+    let url = storage.connectionString || storage.connectionUri || storage.databaseUrl;
+    if (storage.provider === "firestore" && storage.projectId && storage.clientEmail && storage.privateKey) {
         url = {
             projectId: storage.projectId,
             clientEmail: storage.clientEmail,
             privateKey: storage.privateKey
         };
-    } else if (storage.provider === "dynamodb") {
+    } else if (storage.provider === "dynamodb" && storage.region && storage.accessKeyId && storage.secretAccessKey) {
         url = {
             region: storage.region,
             accessKeyId: storage.accessKeyId,
-            secretAccessKey: storage.secretAccessKey
+            secretAccessKey: storage.secretAccessKey,
+            endpoint: storage.endpoint
         };
     }
 
@@ -75,11 +78,9 @@ export async function getStorage({ organization, organizationId, name }) {
         throw new Error("Missing an organization_id while resolving storage");
     }
 
-    const bootstrapStorage = normalizeStorageCredentials(
-        getOrganizationStorage(organization)
-    );
+    const bootstrapStorage = withLegacyUrl(getOrganizationStorage(organization));
     if (!bootstrapStorage) return;
-    if (!bootstrapStorage?.provider || !bootstrapStorage?.url) {
+    if (!bootstrapStorage.provider) {
         throw new Error(
             `Bootstrap storage is not configured for organization "${organizationId}"`
         );
@@ -115,16 +116,16 @@ export async function getStorage({ organization, organizationId, name }) {
         storageConfig: bootstrapStorage
     });
 
-    const storage = normalizeStorageCredentials(response?.object?.[0]);
+    const storage = withLegacyUrl(response?.object?.[0]);
     if (!storage) {
         throw new Error(
             `Storage "${name}" was not found for organization "${organizationId}"`
         );
     }
 
-    if (!storage.name || !storage.provider || !storage.url) {
+    if (!storage.name || !storage.provider) {
         throw new Error(
-            `Storage API record for organization "${organizationId}" is missing name, provider, or url`
+            `Storage API record for organization "${organizationId}" is missing name or provider`
         );
     }
 
