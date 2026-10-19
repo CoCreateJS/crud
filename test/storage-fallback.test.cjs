@@ -7,7 +7,7 @@ const read = file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8
 const context = vm.createContext({ getDriver: async () => { throw Error('Unexpected driver lookup'); } });
 vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), context);
 const resolveStorage = context.getStorage;
-const normalizeStorageCredentials = context.normalizeStorageCredentials;
+const normalizeStorageCredentials = context.withLegacyUrl;
 const fallbackModules = Promise.all([
     import('../src/routing.js'),
     import('../src/storageFallback.js')
@@ -86,9 +86,50 @@ test('configured fallback can be disabled', async () => {
         /fallback is disabled/
     );
 });
-test('invalid tenant storage still reports configuration error', async () => {
-    await assert.rejects(route({storage: {provider:'mongodb'}}, {organization_id:'tenant'}, config), /not configured/);
+test('tenant storage missing a provider still reports a configuration error', async () => {
+    await assert.rejects(route({bootstrapStorage: [{name:'invalid'}]}, {organization_id:'tenant'}, config), /not configured/);
 });
 test('missing server storage reports an error', async () => {
     await assert.rejects(route({}, {organization_id:'tenant'}, {organization_id:'platform'}), /Server storage is not configured/);
+});
+
+test('bootstrapStorage takes precedence and retains native credentials', async () => {
+    const storage = await resolveStorage({
+        organizationId: 'tenant',
+        organization: {
+            bootstrapStorage: { name: 'primary', provider: 'mongodb', connectionString: 'mongodb://tenant' },
+            storage: { provider: 'mysql', url: 'legacy-url' }
+        },
+        name: 'primary'
+    });
+    assert.equal(storage.provider, 'mongodb');
+    assert.equal(storage.name, 'primary');
+    assert.equal(storage.connectionString, 'mongodb://tenant');
+    assert.equal(storage.url, 'mongodb://tenant');
+});
+
+test('named storages resolve from the tenant APIs using its bootstrap driver', async () => {
+    let request;
+    const namedContext = vm.createContext({
+        getDriver: async provider => {
+            assert.equal(provider, 'mongodb');
+            return { send: async data => {
+                request = data;
+                return { object: [{ name: 'analytics', provider: 'postgresql', connectionUri: 'postgres://analytics' }] };
+            } };
+        }
+    });
+    vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), namedContext);
+    const storage = await namedContext.getStorage({
+        organizationId: 'tenant', name: 'analytics',
+        organization: { bootstrapStorage: { name: 'primary', provider: 'mongodb', connectionString: 'mongodb://tenant' } }
+    });
+    assert.equal(storage.url, 'postgres://analytics');
+    assert.equal(request.organization_id, 'tenant');
+    assert.equal(request.database, 'tenant');
+    assert.equal(request.array, 'apis');
+    assert.equal(request.filter.query.name, 'analytics');
+    assert.equal(request.filter.query.type, 'storage');
+    assert.equal(request.filter.query.enabled, true);
+    assert.equal(request.storageConfig.connectionString, 'mongodb://tenant');
 });
