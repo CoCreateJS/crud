@@ -7,7 +7,6 @@ const read = file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8
 const context = vm.createContext({ getDriver: async () => { throw Error('Unexpected driver lookup'); } });
 vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), context);
 const resolveStorage = context.getStorage;
-const normalizeStorageCredentials = context.withLegacyUrl;
 const fallbackModules = Promise.all([
     import('../src/routing.js'),
     import('../src/storageFallback.js')
@@ -24,38 +23,23 @@ async function route(organization, data, config) {
         getStorage: (organization, organizationId, name) => resolveStorage({ organization, organizationId, name })
     });
 }
-const config = { organization_id: 'platform', storage: { provider: 'mongodb', url: 'platform-url' } };
+const config = { organization_id: 'platform', storage: { name: 'platform', provider: 'mongodb', connectionString: 'platform-url' } };
 test('missing tenant storage returns no result', async () => {
     assert.equal(await resolveStorage({ organization: {}, organizationId: 'tenant' }), undefined);
-});
-test('provider-facing credential names normalize to driver url configuration', () => {
-    assert.equal(normalizeStorageCredentials({ provider: 'mysql', connectionUri: 'mysql://database' }).url, 'mysql://database');
-    assert.deepEqual(
-        JSON.parse(JSON.stringify(normalizeStorageCredentials({
-            provider: 'firestore', projectId: 'project', clientEmail: 'service@example.com', privateKey: 'private'
-        }).url)),
-        { projectId: 'project', clientEmail: 'service@example.com', privateKey: 'private' }
-    );
-    assert.deepEqual(
-        JSON.parse(JSON.stringify(normalizeStorageCredentials({
-            provider: 'dynamodb', region: 'us-east-1', accessKeyId: 'access', secretAccessKey: 'secret'
-        }).url)),
-        { region: 'us-east-1', accessKeyId: 'access', secretAccessKey: 'secret' }
-    );
 });
 for (const host of ['platform.example.com', 'custom.example.com']) {
     test(`fallback forces tenant database regardless of host: ${host}`, async () => {
         const organization = { _id: 'tenant' };
         const data = { organization_id: 'tenant', database: 'another-database', host };
         const storage = await route(organization, data, config);
-        assert.equal(storage.url, 'platform-url');
+        assert.equal(storage.connectionString, 'platform-url');
         assert.equal(data.database, 'tenant');
         assert.equal(organization.storage, undefined);
     });
 }
 test('configured storage preserves explicitly requested database', async () => {
     const data = { organization_id: 'platform', database: 'new-tenant' };
-    assert.equal((await route(config, data, config)).url, 'platform-url');
+    assert.equal((await route(config, data, config)).connectionString, 'platform-url');
     assert.equal(data.database, 'new-tenant');
 });
 test('configured fallback can route tenants to a shared database', async () => {
@@ -64,7 +48,7 @@ test('configured fallback can route tenants to a shared database', async () => {
         ...config,
         organizationStorageFallback: { database: 'shared-database' }
     };
-    assert.equal((await route({}, data, fallbackConfig)).url, 'platform-url');
+    assert.equal((await route({}, data, fallbackConfig)).connectionString, 'platform-url');
     assert.equal(data.database, 'shared-database');
 });
 test('file fallback always keeps the tenant database', async () => {
@@ -73,7 +57,7 @@ test('file fallback always keeps the tenant database', async () => {
         ...config,
         organizationStorageFallback: { database: 'shared-database' }
     };
-    assert.equal((await route({}, data, fallbackConfig)).url, 'platform-url');
+    assert.equal((await route({}, data, fallbackConfig)).connectionString, 'platform-url');
     assert.equal(data.database, 'tenant');
 });
 test('configured fallback can be disabled', async () => {
@@ -87,7 +71,7 @@ test('configured fallback can be disabled', async () => {
     );
 });
 test('tenant storage missing a provider still reports a configuration error', async () => {
-    await assert.rejects(route({bootstrapStorage: [{name:'invalid'}]}, {organization_id:'tenant'}, config), /not configured/);
+    await assert.rejects(route({bootstrapStorage: {name:'invalid'}}, {organization_id:'tenant'}, config), /not configured/);
 });
 test('missing server storage reports an error', async () => {
     await assert.rejects(route({}, {organization_id:'tenant'}, {organization_id:'platform'}), /Server storage is not configured/);
@@ -105,7 +89,7 @@ test('bootstrapStorage takes precedence and retains native credentials', async (
     assert.equal(storage.provider, 'mongodb');
     assert.equal(storage.name, 'primary');
     assert.equal(storage.connectionString, 'mongodb://tenant');
-    assert.equal(storage.url, 'mongodb://tenant');
+    assert.equal(storage.url, undefined);
 });
 
 test('named storages resolve from the tenant APIs using its bootstrap driver', async () => {
@@ -124,7 +108,8 @@ test('named storages resolve from the tenant APIs using its bootstrap driver', a
         organizationId: 'tenant', name: 'analytics',
         organization: { bootstrapStorage: { name: 'primary', provider: 'mongodb', connectionString: 'mongodb://tenant' } }
     });
-    assert.equal(storage.url, 'postgres://analytics');
+    assert.equal(storage.connectionUri, 'postgres://analytics');
+    assert.equal(storage.url, undefined);
     assert.equal(request.organization_id, 'tenant');
     assert.equal(request.database, 'tenant');
     assert.equal(request.array, 'apis');
@@ -132,4 +117,23 @@ test('named storages resolve from the tenant APIs using its bootstrap driver', a
     assert.equal(request.filter.query.type, 'storage');
     assert.equal(request.filter.query.enabled, true);
     assert.equal(request.storageConfig.connectionString, 'mongodb://tenant');
+});
+
+for (const storage of [
+    [{ name: 'primary', provider: 'mongodb', connectionString: 'mongodb://db' }],
+    { primary: { provider: 'mongodb', connectionString: 'mongodb://db' } }
+]) {
+    test(`rejects a legacy bootstrap ${Array.isArray(storage) ? 'array' : 'map'}`, async () => {
+        await assert.rejects(resolveStorage({
+            organization: { storage }, organizationId: 'platform'
+        }), /flat object with name and provider/);
+    });
+}
+
+test('bootstrap default and exact name return the original flat connection unchanged', async () => {
+    const storage = { name: 'platform-mysql', provider: 'mysql', connectionUri: 'mysql://db/platform' };
+    const organization = { storage };
+    assert.equal(await resolveStorage({ organization, organizationId: 'platform' }), storage);
+    assert.equal(await resolveStorage({ organization, organizationId: 'platform', name: storage.name }), storage);
+    assert.equal(storage.url, undefined);
 });

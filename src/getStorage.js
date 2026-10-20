@@ -17,52 +17,6 @@
 
 import { getDriver } from "./getDriver.js";
 
-// Packaged storage drivers can still expect `url`. Keep their input compatible
-// while passing the complete record through to drivers that read native fields.
-function withLegacyUrl(storage) {
-    if (!storage || storage.url) return storage;
-
-    let url = storage.connectionString || storage.connectionUri || storage.databaseUrl;
-    if (storage.provider === "firestore" && storage.projectId && storage.clientEmail && storage.privateKey) {
-        url = {
-            projectId: storage.projectId,
-            clientEmail: storage.clientEmail,
-            privateKey: storage.privateKey
-        };
-    } else if (storage.provider === "dynamodb" && storage.region && storage.accessKeyId && storage.secretAccessKey) {
-        url = {
-            region: storage.region,
-            accessKeyId: storage.accessKeyId,
-            secretAccessKey: storage.secretAccessKey,
-            endpoint: storage.endpoint
-        };
-    }
-
-    return url ? { ...storage, url } : storage;
-}
-
-/**
- * Returns the tenant's bootstrap storage from its central organization record.
- */
-function getOrganizationStorage(organization) {
-    const storages = organization?.bootstrapStorage || organization?.storage;
-
-    if (Array.isArray(storages)) {
-        const storage = storages[0];
-        return storage ? { ...storage } : null;
-    }
-
-    if (storages && typeof storages === "object") {
-        if (storages.provider || storages.url) {
-            return { ...storages };
-        }
-        const [name, storage] = Object.entries(storages)[0] || [];
-        return storage ? { name, ...storage } : null;
-    }
-
-    return null;
-}
-
 /**
  * Resolves the tenant bootstrap storage by default. Its assigned name resolves
  * directly; other names are resolved from the tenant's own `apis` collection.
@@ -78,11 +32,12 @@ export async function getStorage({ organization, organizationId, name }) {
         throw new Error("Missing an organization_id while resolving storage");
     }
 
-    const bootstrapStorage = withLegacyUrl(getOrganizationStorage(organization));
+    const bootstrapStorage = organization?.bootstrapStorage || organization?.storage;
     if (!bootstrapStorage) return;
-    if (!bootstrapStorage.provider) {
+    if (typeof bootstrapStorage !== 'object' || Array.isArray(bootstrapStorage) ||
+        !bootstrapStorage.name || !bootstrapStorage.provider) {
         throw new Error(
-            `Bootstrap storage is not configured for organization "${organizationId}"`
+            `Bootstrap storage is not configured as a flat object with name and provider for organization "${organizationId}"`
         );
     }
 
@@ -116,7 +71,7 @@ export async function getStorage({ organization, organizationId, name }) {
         storageConfig: bootstrapStorage
     });
 
-    const storage = withLegacyUrl(response?.object?.[0]);
+    const storage = response?.object?.[0];
     if (!storage) {
         throw new Error(
             `Storage "${name}" was not found for organization "${organizationId}"`

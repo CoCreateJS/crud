@@ -59,6 +59,38 @@ await crudServer.send({
 });
 ```
 
+Bootstrap storage configuration
+
+`CoCreate.config.js` stores a single flat bootstrap connection:
+
+```javascript
+export default {
+  storage: {
+    name: 'platform-mongodb',
+    provider: 'mongodb',
+    connectionString: 'mongodb://host/platform'
+  }
+};
+```
+
+Startup uses `Config.prompt()` to request a single valid JSON storage object
+when storage is not configured. Include non-empty `name` and `provider` strings
+and the credential fields required by the driver. For example:
+`{"name":"primary","provider":"mongodb","connectionString":"mongodb://host/platform"}`.
+Credential field names and nested credential objects are preserved as supplied;
+the driver validates its connection requirements. Valid prompt input is parsed
+before it is saved as the global `storage` object. Existing local, global, or
+environment configuration is used without prompting. Storage is selected as one
+complete object; local and global credential fields are not merged. Omit local
+`storage` to inherit the global object. The environment carries the object as
+JSON for child processes.
+
+Bootstrap storage and named `apis` storage records are passed unchanged to the
+driver as `storageConfig`. Bootstrap arrays and maps keyed by connection name are
+not supported. Omit a CRUD request's `storage` to use the bootstrap connection,
+or specify its exact name. Other names resolve enabled storage records from
+`apis` using the bootstrap connection.
+
 Core payload contract
 - `method` (String) — dot-notated action identifier, e.g. `object.create`, `object.read`, `object.update`, `array.list`.
 - `organization_id` (String) — tenant identifier (required for multi-tenant deployments).

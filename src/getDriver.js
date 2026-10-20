@@ -32,6 +32,11 @@ const STORAGE_DIRS = [
 // In-memory runtime cache for loaded storage driver instances
 export const drivers = new Map();
 
+function logPrefix() {
+    const workerId = process.env.WORKER_ID;
+    return `[@cocreate/crud-server] ${workerId ? `[WORKER ${workerId}]` : '[MASTER]'}`;
+}
+
 /**
  * Database provider to core engine driver mappings.
  * Maps specific databases (e.g., CosmosDB, MariaDB) to their actual underlying wrapper/driver.
@@ -122,7 +127,7 @@ export function registerDriver(provider, driver) {
         drivers.set(alias, instance);
     }
 
-    console.log(`[@cocreate/crud-server] Cached driver instance for provider "${provider}"`);
+    console.log(`${logPrefix()} Cached driver instance for provider "${provider}"`);
     return instance;
 }
 
@@ -156,10 +161,10 @@ export async function getDriver(provider) {
         try {
             const driver = await importDriverModule(driverPath);
             registerDriver(key, driver);
-            console.log(`[@cocreate/crud-server] Loaded driver for "${provider}" (using "${resolvedProvider}") from ${driverPath}`);
+            console.log(`${logPrefix()} Loaded driver for "${provider}" (using "${resolvedProvider}") from ${driverPath}`);
             return drivers.get(key);
         } catch (err) {
-            console.error(`[@cocreate/crud-server] Failed to import driver from ${driverPath}:`, err.message);
+            console.error(`${logPrefix()} Failed to import driver from ${driverPath}:`, err.message);
             throw err;
         }
     }

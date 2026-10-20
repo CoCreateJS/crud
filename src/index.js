@@ -22,6 +22,7 @@ import GetOrganization from './getOrganization.js';
 import { getDriver, registerDriver, drivers } from './getDriver.js';
 import { includesFileArray, isPlatformArray } from './routing.js';
 import { getStorage as resolveStorage } from './getStorage.js';
+import { promptBootstrapStorage } from './bootstrapStorage.js';
 import {
     defaultOrganizationStorageFallback,
     resolveOrganizationStorageFallback
@@ -86,58 +87,13 @@ export async function init(Server) {
 
     config = await Config.prompt({
         'organization_id': { prompt: 'Enter your organization_id: ' },
-        'host': { prompt: 'Enter your host: ' },
-        'storage': {
-            prompt: 'Enter the bootstrap storage object as JSON (name, provider, and provider credentials): '
-        }
+        'host': { prompt: 'Enter your host: ' }
     });
-
+    config.storage = await promptBootstrapStorage(Config);
+    const primaryStorage = config.storage;
     normalizeOrganizationStorageFallback();
 
-    let primaryStorage;
-    let bootstrapStorageName;
-
-    if (config.storage) {
-        if (typeof config.storage === 'string') {
-            config.storage = JSON.parse(config.storage);
-        }
-
-        if (Array.isArray(config.storage)) {
-            primaryStorage = config.storage[0];
-        } else if (config.storage.provider) {
-            primaryStorage = config.storage;
-        } else {
-            const storageKeys = Object.keys(config.storage);
-            if (storageKeys.length > 0) {
-                bootstrapStorageName = storageKeys[0];
-                primaryStorage = config.storage[bootstrapStorageName];
-            }
-        }
-    }
-
-    // Resolve a blank local URL from the global config field by field. Reading
-    // the whole local storage object above does not merge nested global values.
-    const hasNativeCredentials = primaryStorage && (
-        primaryStorage.connectionString ||
-        primaryStorage.connectionUri ||
-        primaryStorage.databaseUrl ||
-        (primaryStorage.projectId && primaryStorage.clientEmail && primaryStorage.privateKey) ||
-        (primaryStorage.region && primaryStorage.accessKeyId && primaryStorage.secretAccessKey)
-    );
-    if (primaryStorage && !primaryStorage.url && !hasNativeCredentials) {
-        const path = bootstrapStorageName
-            ? `storage.${bootstrapStorageName}.url`
-            : "storage.url";
-        const resolved = await Config.prompt({ [path]: {} });
-        const url = bootstrapStorageName
-            ? resolved.storage?.[bootstrapStorageName]?.url
-            : resolved.storage?.url;
-        if (url) primaryStorage.url = url;
-    }
-
-    if (!primaryStorage?.provider || !config.organization_id) {
-        process.exit(1);
-    }
+    if (!config.organization_id) throw new Error('Missing bootstrap organization_id.');
 
     // Resolve the bootstrap driver before the server persists lifecycle state
     // or forks workers. Other configured providers remain lazy-loaded.
