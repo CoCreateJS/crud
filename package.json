@@ -58,7 +58,7 @@
   "main": "./src/index.js",
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/cocreatejs/CoCreate-crud-server.git"
+    "url": "git+https://github.com/cocreatejs/CoCreate-crud-server.git"
   },
   "author": "CoCreate LLC",
   "license": "AGPL-3.0",
