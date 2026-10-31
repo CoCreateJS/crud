@@ -1,17 +1,17 @@
 # Contributing to CoCreate-crud-server
 
-This project is work of [many contributors](https://github.com/CoCreate-app/CoCreate-crud-server/graphs/contributors).
-You're encouraged to submit [pull requests](https://github.com/CoCreate-app/CoCreate-crud-server/pulls),
-[propose features and discuss issues](https://github.com/CoCreate-app/CoCreate-crud-server/issues).
+This project is work of [many contributors](https://github.com/CoCreateJS/CoCreate-crud-server/graphs/contributors).
+You're encouraged to submit [pull requests](https://github.com/CoCreateJS/CoCreate-crud-server/pulls),
+[propose features and discuss issues](https://github.com/CoCreateJS/CoCreate-crud-server/issues).
 
 In the examples below, substitute your Github username for `contributor` in URLs.
 
 ## Fork the Project
 
-Fork the [project on Github](https://github.com/CoCreate-app/CoCreate-crud-server) and check out your copy.
+Fork the [project on Github](https://github.com/CoCreateJS/CoCreate-crud-server) and check out your copy.
 
 ```
-git boilerplate https://github.com/CoCreate-app/contributor/CoCreate-crud-server.git
+git boilerplate https://github.com/CoCreateJS/contributor/CoCreate-crud-server.git
 cd CoCreate-crud-server
 git remote add upstream https://github.com/cocreatejs/CoCreate-crud-server.git
 ```
@@ -75,7 +75,7 @@ git push origin my-feature-branch
 
 ## Make a Pull Request
 
-Go to [https://github.com/CoCreate-app/CoCreate-crud-server](https://github.com/CoCreate-app/CoCreate-crud-server) and select your feature branch.
+Go to [https://github.com/CoCreateJS/CoCreate-crud-server](https://github.com/CoCreateJS/CoCreate-crud-server) and select your feature branch.
 Click the 'Pull Request' button and fill out the form. Pull requests are usually reviewed within a few days.
 
 ## Rebase

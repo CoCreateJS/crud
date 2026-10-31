@@ -63,9 +63,9 @@
   "author": "CoCreate LLC",
   "license": "AGPL-3.0",
   "bugs": {
-    "url": "https://github.com/CoCreate-app/CoCreate-crud-server/issues"
+    "url": "https://github.com/CoCreateJS/CoCreate-crud-server/issues"
   },
-  "homepage": "https://cocreate.app/docs/CoCreate-crud-server",
+  "homepage": "https://CoCreateJS.com/docs/CoCreate-crud-server",
   "dependencies": {
     "@cocreate/config": "^1.21.0",
     "@cocreate/utils": "^1.54.0"
