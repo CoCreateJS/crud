@@ -27,29 +27,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "cocreate": {
-    "environment": [
-      "server"
-    ],
-    "interface": {
-      "schemaVersion": 1,
-      "summary": "High-performance, multi-tenant server-side CRUD orchestration engine supporting parallel multi-database writing, real-time sync, and tenant-isolated data routing across 20+ database engines.",
-      "source": "src/index.js",
-      "api": {
-        "exports": [
-          "config",
-          "drivers",
-          "getDriver",
-          "getFilterCount",
-          "getStorage",
-          "init",
-          "loadCrudConfig",
-          "registerDriver",
-          "send"
-        ]
-      }
-    }
-  },
   "scripts": {
     "demo": "PORT=5000 node demo/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"

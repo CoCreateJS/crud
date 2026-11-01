@@ -29,6 +29,11 @@ import {
 } from './storageFallback.js';
 
 let server = null;
+/**
+ *
+ * @public
+ * @environment server
+ */
 let config = null;
 let initialized = false;
 let wsManager = null;
@@ -50,6 +55,8 @@ function normalizeOrganizationStorageFallback() {
 /**
  * Merges module configuration and scoped platform database overrides over the
  * bootstrap configuration loaded by Config.prompt().
+ * @public
+ * @environment server
  */
 export async function loadCrudConfig() {
     const systemConfig = Config.get('crud');
@@ -71,9 +78,11 @@ export async function loadCrudConfig() {
 /**
  * Initializes the CrudServer module, prompts/loads configuration, and binds socket listeners.
  * Drivers are resolved strictly on demand during send() query dispatch.
- * 
+ *
  * @param {Object} Server - CoCreateServer instance context
  * @returns {Promise<Object>} Initialized CrudServer module API instance
+ * @public
+ * @environment server
  */
 export async function init(Server) {
     if (initialized) return crudServer;
@@ -103,8 +112,23 @@ export async function init(Server) {
         config,
         send,
         getStorage,
+        /**
+         *
+ * @public
+ * @environment server
+ */
         getDriver,
+        /**
+         *
+ * @public
+ * @environment server
+ */
         registerDriver,
+        /**
+         *
+ * @public
+ * @environment server
+ */
         drivers
     };
 
@@ -141,9 +165,11 @@ export async function init(Server) {
 /**
  * Main CRUD payload dispatcher.
  * Resolves organization context, determines target storage driver, and executes query.
- * 
+ *
  * @param {Object} data - Request query payload
  * @returns {Promise<Object>} Processed response payload
+ * @public
+ * @environment server
  */
 async function send(data) {
     return new Promise(async (resolve) => {
@@ -280,6 +306,8 @@ async function send(data) {
 
 /**
  * Resolves the organization bootstrap storage or a named tenant API storage.
+ * @public
+ * @environment server
  */
 async function getStorage(organization, organizationId, name) {
     return await resolveStorage({
@@ -289,6 +317,11 @@ async function getStorage(organization, organizationId, name) {
     });
 }
 
+/**
+ *
+ * @public
+ * @environment server
+ */
 export function getFilterCount(filter) {
     if (!Array.isArray(filter?.storages) || !filter.storages.length)
         return;
@@ -340,3 +373,10 @@ export default {
     registerDriver,
     drivers
 };
+
+/**
+ * High-performance, multi-tenant server-side CRUD orchestration engine supporting parallel multi-database writing, real-time sync, and tenant-isolated data routing across 20+ database engines.
+ *
+ * @module crud-server
+ * @environment server
+ */
