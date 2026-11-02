@@ -1,3 +1,51 @@
+# [2.0.0](https://github.com/CoCreateJS/crud-server/compare/v1.37.2...v2.0.0) (2026-11-02)
+
+
+### Bug Fixes
+
+* add Deno specific entries to .gitignore ([25cad61](https://github.com/CoCreateJS/crud-server/commit/25cad616aafe8f882aa1d53cfa22fb6f79518e02))
+* bump [@cocreate](https://github.com/cocreate) dependencies ([afbbc21](https://github.com/CoCreateJS/crud-server/commit/afbbc2131358765da32ebf264fd0389b6a23acb4))
+* bump versions ([46c89ee](https://github.com/CoCreateJS/crud-server/commit/46c89eef7e4afd5eee626ad72ff3947ff55727b0))
+* bump versions ([27be358](https://github.com/CoCreateJS/crud-server/commit/27be3584656b270382cacbc654d9f564ce70331e))
+* correct config request method in init function and remove unused storageManager call ([80a2ac9](https://github.com/CoCreateJS/crud-server/commit/80a2ac9ca1e56ed8338c1f84ab3fc29c312183b3))
+* correct storage directory name and update error message for driver resolution ([6a67a91](https://github.com/CoCreateJS/crud-server/commit/6a67a9103b6dc45874a94760747382c7378de06a))
+* export ([3e2da66](https://github.com/CoCreateJS/crud-server/commit/3e2da665cc1d15a6dc778a2796b4d9cbed87b271))
+* initialize packaged storage drivers ([574299a](https://github.com/CoCreateJS/crud-server/commit/574299a9ad26d12a7711e86ab88b37f0b94c9763))
+* remove trailing slash from node_modules entry in .gitignore ([748163e](https://github.com/CoCreateJS/crud-server/commit/748163ee9b5aef36d61736b02645fad0eddf3ebf))
+* remove unused @cocreate/mongodb dependency from package.json ([fcbd7b5](https://github.com/CoCreateJS/crud-server/commit/fcbd7b53c94f18f818ce8e0f185343db27f917e2))
+* reorganize and expand database providers in index.js ([b7421d7](https://github.com/CoCreateJS/crud-server/commit/b7421d75da2497463e800c06fc6c349e51c4783e))
+* replace legacy $filter field with filter ([2b52e90](https://github.com/CoCreateJS/crud-server/commit/2b52e9014159fe8365ca6d97abf11439ab64ae02))
+* streamline organization handling and improve storage data structure in send function ([004dfd2](https://github.com/CoCreateJS/crud-server/commit/004dfd225bd15599e0c1c17a7f2fd0849b412457))
+* update config initialization to use Config.request for better clarity ([d48e3ae](https://github.com/CoCreateJS/crud-server/commit/d48e3aec3e70013ab4f91ed7041d7aef05f8490d))
+* update dependencies for @cocreate/config, @cocreate/mongodb, and @cocreate/utils ([a948d18](https://github.com/CoCreateJS/crud-server/commit/a948d18f5b3111c9afec5840bcd4ee38e551ed49))
+* update git url ([40ae7ba](https://github.com/CoCreateJS/crud-server/commit/40ae7ba8cc5cd3b6e6b58c08f8d09309543757c2))
+* update GitHub Actions to use latest versions and sync package.json description ([9b7cdc1](https://github.com/CoCreateJS/crud-server/commit/9b7cdc18201c10905c174d424fa79db4dd14d859))
+* update import path for getDriver module to ensure correct functionality ([87faf40](https://github.com/CoCreateJS/crud-server/commit/87faf40fefd50bf500bf985ed5675137357a74fe))
+* update MongoDB dependency and register it in providers ([fed9356](https://github.com/CoCreateJS/crud-server/commit/fed93560a278d5efd2d39ede5adf949875ab7d76))
+
+
+### Features
+
+* added storage directory containg supported storage artifacts ([6126b53](https://github.com/CoCreateJS/crud-server/commit/6126b53faee2feb9c5900ae8119351bf4511ef2e))
+* align CoCreate repository and package naming ([ff548d0](https://github.com/CoCreateJS/crud-server/commit/ff548d0ab1d6e0939d5574835ddcfebb1c6021df))
+* bump all dependencies ([5192143](https://github.com/CoCreateJS/crud-server/commit/51921432eac8ea96a6588ea7a6f232a058d06958))
+* bumped all dependency versions ([ea003dd](https://github.com/CoCreateJS/crud-server/commit/ea003dd4fde671403e04721ae22867a8a5b597d0))
+* enhance driver registration and retrieval in crudServer ([148903e](https://github.com/CoCreateJS/crud-server/commit/148903e67656f2590ee2c1bbe2e20c900a0500a5))
+* enhance StorageManager with comprehensive driver whitelist and improved organization handling ([d3a2cdf](https://github.com/CoCreateJS/crud-server/commit/d3a2cdf40fe093d04b230a0a746b6a9eebe3a10d))
+* implement dynamic driver management and installation in getDriver module ([a060efd](https://github.com/CoCreateJS/crud-server/commit/a060efd2dcc85ae3377609f818d8f96a90695339))
+* implement GetOrganization module for organization management and caching ([846326d](https://github.com/CoCreateJS/crud-server/commit/846326d21b79301648c991e65bbc3e5d61d4cbc8))
+* implement StorageManager with worker thread support and provider mapping ([6b74a9f](https://github.com/CoCreateJS/crud-server/commit/6b74a9f61f0da70a791588449ee69389264fd4ea))
+* normalize provider storage credentials ([06d1af9](https://github.com/CoCreateJS/crud-server/commit/06d1af9a33127d1e9776e430d78add7ce001a250))
+* refactor getDriver and GetOrganization modules for improved driver management and context binding ([4be7f87](https://github.com/CoCreateJS/crud-server/commit/4be7f87eaf349a0099c15207d7e538b8cd30c2b4))
+* reorganize storageManager for improved driver handling and event processing ([c0519a7](https://github.com/CoCreateJS/crud-server/commit/c0519a70f6d58da5f5d8e57dd8d3cecc9b12bcab))
+* resolve tenant storage dynamically ([85c079b](https://github.com/CoCreateJS/crud-server/commit/85c079b214ade0a5e52a3a746ddc5a6dcee01728))
+* streamline index.js by removing unused providers and integrating storageManager ([d6b7e78](https://github.com/CoCreateJS/crud-server/commit/d6b7e78805601836f7f528f7aa92331ed6010832))
+
+
+### BREAKING CHANGES
+
+* consumers must use the renamed CoCreate package and repository identities; the previous prefixed names are no longer supported.
+
 ## [1.37.2](https://github.com/CoCreateJS/CoCreate-crud-server/compare/v1.37.1...v1.37.2) (2026-07-19)
 
 
