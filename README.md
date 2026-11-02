@@ -44,7 +44,7 @@ npm install @cocreate/crud-server
 Quick start — initialize during server bootstrap
 ```javascript
 import crudServer from '@cocreate/crud-server';
-import CoCreateServer from '@cocreate/server';
+import CoCreateServer from '@cocreate/cluster';
 
 const server = await CoCreateServer.start();
 await crudServer.init(server);
