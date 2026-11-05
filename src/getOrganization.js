@@ -15,6 +15,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  ********************************************************************************/
 
+import { resolveOrganizationStorageFallback } from './storageFallback.js';
+
 export class GetOrganization {
     constructor() {
         this.crud = null;
@@ -129,33 +131,63 @@ export class GetOrganization {
             return { serverOrganization: false, error: 'Send method not available on CRUD instance' };
         }
 
-        let organization = await sendFn(query);
+        const organization = await sendFn(query);
+        if (organization?.error || organization?.success === false) {
+            return { serverOrganization: false, error: organization.error || 'Unable to read the platform organization' };
+        }
 
-        if (organization && organization.object && organization.object[0]) {
-            if (!this.organizations[organization.object[0]._id] || this.organizations[query.organization_id]?.isConfig) {
-                this.organizations[organization.object[0]._id] = organization.object[0];
-
-                delete query.filter;
-                query.database = query.organization_id = organization.object[0]._id;
-                let org = await sendFn(query);
-                if (org && org.object && org.object[0]) {
-                    if (data.host) {
-                        this.hosts[data.host] = org.object[0];
-                    }
-                    return org.object[0];
-                } else {
-                    if (data.host) return this.hosts[data.host];
-                    return {
-                        serverOrganization: false,
-                        error: "An organization could not be found in the specified dbUrl"
-                    };
-                }
-            } else {
-                if (data.host) {
-                    this.hosts[data.host] = organization.object[0];
-                }
-                return organization.object[0];
+        let platformOrganization = organization?.object?.[0];
+        if (!platformOrganization && data.organization_id) {
+            const storage = config.bootstrapStorage || config.storage;
+            if (storage?.name && storage?.provider &&
+                resolveOrganizationStorageFallback(config, data.organization_id)) {
+                // A registry record is optional when the organization ID is
+                // known and the existing platform storage fallback can connect.
+                // Storage selection remains the CRUD dispatcher's responsibility.
+                platformOrganization = {
+                    _id: data.organization_id,
+                    organization_id: data.organization_id
+                };
             }
+        }
+        if (platformOrganization) {
+            const organizationId = platformOrganization._id;
+            // The nested tenant read needs this connection context before the
+            // tenant has an organization record of its own.
+            this.organizations[organizationId] = platformOrganization;
+
+            let tenant;
+            try {
+                tenant = await sendFn({
+                    method: 'object.read',
+                    database: organizationId,
+                    organization_id: organizationId,
+                    array: 'organizations',
+                    object: [{ _id: organizationId }]
+                });
+            } catch (error) {
+                delete this.organizations[organizationId];
+                throw error;
+            }
+
+            if (!tenant || tenant.error || tenant.success === false) {
+                const failure = {
+                    serverOrganization: false,
+                    error: tenant?.error || 'Unable to read the tenant organization'
+                };
+                this.organizations[organizationId] = failure;
+                if (data.host) this.hosts[data.host] = failure;
+                return failure;
+            }
+
+            // Tenant fields override the platform profile; absent fields,
+            // including bootstrapStorage, continue to come from the platform.
+            const resolvedOrganization = tenant.object?.[0]
+                ? { ...platformOrganization, ...tenant.object[0] }
+                : platformOrganization;
+            this.organizations[organizationId] = resolvedOrganization;
+            if (data.host) this.hosts[data.host] = resolvedOrganization;
+            return resolvedOrganization;
         }
         return { serverOrganization: false, error: 'An organization could not be found' };
     }
