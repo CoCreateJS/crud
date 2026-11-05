@@ -1,3 +1,11 @@
+## [2.0.1](https://github.com/CoCreateJS/crud-server/compare/v2.0.0...v2.0.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* preserve organization bootstrap context during tenant resolution ([b0072c4](https://github.com/CoCreateJS/crud-server/commit/b0072c465e362c97b34359399e03444ec4a320d8))
+* upgrade CoCreate dependencies to v2 ([3d1fc88](https://github.com/CoCreateJS/crud-server/commit/3d1fc88186ed14b9a281931412956f48210d7a19))
+
 # [2.0.0](https://github.com/CoCreateJS/crud-server/compare/v1.37.2...v2.0.0) (2026-11-02)
 
 
