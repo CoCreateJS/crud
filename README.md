@@ -147,6 +147,10 @@ WebSocket / transport patterns
 - The client-side `@cocreate/crud-client` sends the same unified payload via `crud.send()` which will route the request locally (IndexedDB) and remotely via `crud.socket.send()`.
 - On the server, socket messages map directly into the same `crudServer.send(payload)` contract. This keeps the client and server API identical and stateless.
 
+`await crudServer.send(payload)` returns the processed storage response independently of message delivery. Delivery failures are reported without retrying the operation or leaving its promise pending. Only successful create, update, and delete operations emit `crud-event`; reads do not invalidate authorization caches.
+
+When SocketServer redirects storage authorization to the platform organization, its trusted `replyOrganizationId` preserves the original tenant response scope. Private application queries, including credential lookups, omit client destinations, broadcast flags, and the outer request UUID. The application's final response retains those reply fields.
+
 Example: sending an AI prompt to a Copilot plugin (convention)
 ```javascript
 // client: send via crud.socket.send

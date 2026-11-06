@@ -12,8 +12,8 @@ const fallbackModules = Promise.all([
     import('../src/storageFallback.js')
 ]);
 const index = read('index.js');
-const start = index.indexOf('                let storage = await getStorage(');
-const block = index.slice(start, index.indexOf('                if (storage && storage.provider)', start));
+const start = index.indexOf('let storage = await getStorage(');
+const block = index.slice(start, index.indexOf('if (storage && storage.provider)', start));
 async function route(organization, data, config) {
     const [{ includesFileArray }, { resolveOrganizationStorageFallback }] = await fallbackModules;
     return vm.runInNewContext('(async () => {' + block + 'return storage;})()', {
