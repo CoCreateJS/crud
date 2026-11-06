@@ -276,28 +276,24 @@ async function send(data) {
 
             delete data.storageConfig;
 
-            if (data.socket && wsManager) {
+            if (data.socket && server?.send) {
                 if (data.organization_id === config.organization_id && data.socket.organization_id !== data.organization_id) {
-                    wsManager.send({
-                        config: {
-                            organization_id: config.organization_id,
-                        }
-                    }, { ...data });
+                    server.send({ ...data, socket: undefined });
                     data.organization_id = data.socket.organization_id;
                 }
 
-                wsManager.send(data);
+                server.send(data);
                 process.emit('crud-event', data);
             }
             resolve(data);
         } catch (error) {
-            if (data.socket && wsManager) {
+            if (data.socket && server?.send) {
                 if (typeof errorHandler === 'function') {
                     errorHandler(data, error);
                 } else {
                     data.error = error.message || error;
                 }
-                wsManager.send(data);
+                server.send(data);
             }
             resolve(data);
         }
