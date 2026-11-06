@@ -281,7 +281,7 @@ test('an unknown hostname alone cannot fabricate an organization identity', asyn
 });
 
 test('Socket Server local orgDisconnected clears only that organization resolver cache', async t => {
-    const { SocketServer } = await import('../../socket-server/src/index.js');
+    const { SocketServer } = await import('../../socket/src/server/index.js');
     const previous = new Set(process.listeners('orgDisconnected'));
     const resolver = new GetOrganization();
     t.after(() => {
@@ -304,7 +304,7 @@ test('Socket Server local orgDisconnected clears only that organization resolver
 
 
 test('own-organization disconnect clears resolver presence while bootstrap config remains available', async t => {
-    const { SocketServer } = await import('../../socket-server/src/index.js');
+    const { SocketServer } = await import('../../socket/src/server/index.js');
     const previous = new Set(process.listeners('orgDisconnected'));
     const resolver = new GetOrganization();
     const reports = [];
