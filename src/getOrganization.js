@@ -24,7 +24,7 @@ export class GetOrganization {
         this.hosts = {};
 
         // Hook into global organization teardown event to cleanup cache
-        process.on('organization.evicted', (organization_id) => {
+        process.on('orgDisconnected', (organization_id, details = {}) => {
             delete this.organizations[organization_id];
             for (const host in this.hosts) {
                 if (

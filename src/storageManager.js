@@ -160,7 +160,7 @@ function registerOrgDriverMapping(driverKey, organizationId) {
  * - Cancels in-flight requests for the organization.
  * - Terminates idle worker isolates when no active organizations remain (except primary DB).
  */
-async function handleOrganizationEvicted(payload) {
+async function handleOrganizationDisconnected(payload, details = {}) {
     const organizationId = typeof payload === "string" ? payload : payload?.organization_id || payload?.id;
     if (!organizationId) return;
 
@@ -219,7 +219,7 @@ async function handleOrganizationEvicted(payload) {
 }
 
 // Register the runtime organization eviction lifecycle.
-process.on("organization.evicted", handleOrganizationEvicted);
+process.on("orgDisconnected", handleOrganizationDisconnected);
 
 /**
  * Fetches a database driver script from host endpoint.

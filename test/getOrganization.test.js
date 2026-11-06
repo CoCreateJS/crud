@@ -122,10 +122,10 @@ test('an unresolved host falls back to organization_id', async () => {
 // write. Storage is in memory; no database or API requests leave this process.
 async function createTenantResolver(t, options = {}) {
     const { getStorage } = await import('../src/getStorage.js');
-    const existingListeners = new Set(process.listeners('organization.evicted'));
+    const existingListeners = new Set(process.listeners('orgDisconnected'));
     const resolver = new GetOrganization();
-    const evictionListener = process.listeners('organization.evicted').find(listener => !existingListeners.has(listener));
-    t.after(() => process.removeListener('organization.evicted', evictionListener));
+    const evictionListener = process.listeners('orgDisconnected').find(listener => !existingListeners.has(listener));
+    t.after(() => process.removeListener('orgDisconnected', evictionListener));
     const storage = { name: 'primary', provider: 'custom', credentials: { endpoint: 'test-only' } };
     const platformOrganization = {
         _id: 'tenant', name: 'Platform name', bootstrapStorage: storage,
@@ -278,4 +278,52 @@ test('an unknown hostname alone cannot fabricate an organization identity', asyn
     const result = await resolver.getOrganization({ host: 'unknown.example.com' });
     assert.ok(result.error);
     assert.equal(requests.length, 1);
+});
+
+test('Socket Server local orgDisconnected clears only that organization resolver cache', async t => {
+    const { SocketServer } = await import('../../socket-server/src/index.js');
+    const previous = new Set(process.listeners('orgDisconnected'));
+    const resolver = new GetOrganization();
+    t.after(() => {
+        for (const listener of process.listeners('orgDisconnected')) {
+            if (!previous.has(listener)) process.removeListener('orgDisconnected', listener);
+        }
+    });
+    resolver.organizations.tenant = { _id: 'tenant' };
+    resolver.organizations.other = { _id: 'other' };
+    resolver.hosts['tenant.test'] = 'tenant';
+    resolver.hosts['alias.test'] = { _id: 'tenant' };
+    resolver.hosts['other.test'] = { _id: 'other' };
+    SocketServer.prototype.emitOrganizationDisconnected.call({}, 'tenant', { reason: 'idle' });
+    assert.equal(resolver.organizations.tenant, undefined);
+    assert.equal(resolver.hosts['tenant.test'], undefined);
+    assert.equal(resolver.hosts['alias.test'], undefined);
+    assert.deepEqual(resolver.organizations.other, { _id: 'other' });
+    assert.deepEqual(resolver.hosts['other.test'], { _id: 'other' });
+});
+
+
+test('own-organization disconnect clears resolver presence while bootstrap config remains available', async t => {
+    const { SocketServer } = await import('../../socket-server/src/index.js');
+    const previous = new Set(process.listeners('orgDisconnected'));
+    const resolver = new GetOrganization();
+    const reports = [];
+    const listener = (id, details) => reports.push({ id, details });
+    process.on('orgDisconnected', listener);
+    t.after(() => {
+        for (const item of process.listeners('orgDisconnected')) {
+            if (!previous.has(item)) process.removeListener('orgDisconnected', item);
+        }
+    });
+    resolver.organizations.tenant = { _id: 'tenant' };
+    resolver.hosts['tenant.test'] = 'tenant';
+    const bootstrap = { organization_id: 'tenant', storage: { name: 'bootstrap' } };
+    resolver.crud = { config: bootstrap };
+    SocketServer.prototype.emitOrganizationDisconnected.call({ server: bootstrap, workerId: 1 }, 'tenant', { reason: 'idle' });
+    assert.equal(reports.length, 1);
+    assert.equal('retainResources' in reports[0].details, false);
+    assert.equal(reports[0].details.workerId, 1);
+    assert.equal(resolver.organizations.tenant, undefined);
+    assert.equal(resolver.hosts['tenant.test'], undefined);
+    assert.equal(resolver.crud.config, bootstrap);
 });
