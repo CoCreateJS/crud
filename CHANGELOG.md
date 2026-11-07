@@ -1,3 +1,11 @@
+## [2.0.3](https://github.com/CoCreateJS/crud/compare/v2.0.2...v2.0.3) (2026-11-07)
+
+
+### Bug Fixes
+
+* consolidate CRUD client and server packages ([8571f03](https://github.com/CoCreateJS/crud/commit/8571f0343b93e530e1befa0c05f68ac4421f0a38))
+* update CRUD repository metadata ([de0fa59](https://github.com/CoCreateJS/crud/commit/de0fa596d75b4d1fdf503ce39d9cda60e7503b46))
+
 ## [2.0.2](https://github.com/CoCreateJS/crud-server/compare/v2.0.1...v2.0.2) (2026-11-07)
 
 
