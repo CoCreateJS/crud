@@ -58,12 +58,12 @@
   },
   "homepage": "https://CoCreateJS.com/docs/crud",
   "dependencies": {
-    "@cocreate/config": "^2.0.0",
-    "@cocreate/utils": "^2.0.0",
-    "@cocreate/indexeddb": "^2.0.0",
-    "@cocreate/socket": "^2.0.1"
+    "@cocreate/config": "^2.0.1",
+    "@cocreate/utils": "^2.0.2",
+    "@cocreate/indexeddb": "^2.0.1",
+    "@cocreate/socket": "^3.0.0"
   },
   "devDependencies": {
-    "@cocreate/webpack": "^2.0.0"
+    "@cocreate/webpack": "^2.0.1"
   }
 }
