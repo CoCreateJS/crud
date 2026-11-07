@@ -42,7 +42,6 @@ let crudServer = null;
 
 function sendToServer(data) {
     const envelope = { ...data };
-    delete envelope.socket;
     delete envelope.replyOrganizationId;
     try {
         return Promise.resolve(server.send(envelope)).catch(error => {
@@ -297,7 +296,6 @@ async function send(data) {
         const hasErrors = Array.isArray(data.error) ? data.error.length > 0 : Boolean(data.error);
         if (!hasErrors && data.success !== false && /\.(create|update|delete)$/.test(data.method)) {
             const eventData = { ...data };
-            delete eventData.socket;
             delete eventData.replyOrganizationId;
             process.emit('crud-event', eventData);
         }

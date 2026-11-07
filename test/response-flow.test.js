@@ -41,6 +41,15 @@ test('reads return their result without triggering mutation listeners', async ()
     assert.equal(f.changes.length, 0);
 });
 
+test('an unrelated socket payload field survives CRUD results, delivery, and mutation events', async () => {
+    const f = fixture();
+    const socket = { purpose: 'application data' };
+    const result = await f.send({ method: 'object.update', organization_id: 'tenant', array: 'records', socket });
+    assert.equal(result.socket, socket);
+    assert.equal(f.sent[0].socket, socket);
+    assert.equal(f.changes[0].socket, socket);
+});
+
 test('successful mutations notify cache listeners once; failed writes do not', async () => {
     const f = fixture();
     await f.send({ method: 'object.update', organization_id: 'tenant', array: 'keys' });
