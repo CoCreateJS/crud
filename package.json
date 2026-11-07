@@ -49,14 +49,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CoCreateJS/crud-server.git"
+    "url": "git+https://github.com/CoCreateJS/crud.git"
   },
   "author": "CoCreate LLC",
   "license": "AGPL-3.0",
   "bugs": {
-    "url": "https://github.com/CoCreateJS/crud-server/issues"
+    "url": "https://github.com/CoCreateJS/crud/issues"
   },
-  "homepage": "https://CoCreateJS.com/docs/CoCreate-crud-server",
+  "homepage": "https://CoCreateJS.com/docs/crud",
   "dependencies": {
     "@cocreate/config": "^2.0.0",
     "@cocreate/utils": "^2.0.0",
