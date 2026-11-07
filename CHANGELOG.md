@@ -1,3 +1,14 @@
+## [2.0.2](https://github.com/CoCreateJS/crud-server/compare/v2.0.1...v2.0.2) (2026-11-07)
+
+
+### Bug Fixes
+
+* complete unified socket package migration ([784da6e](https://github.com/CoCreateJS/crud-server/commit/784da6e25547422ee5f69a46d3103fb4578976aa))
+* preserve socket data in CRUD responses ([9e4e1be](https://github.com/CoCreateJS/crud-server/commit/9e4e1beb6d8a5a98a533bcbb8a1cab7e95b84f00))
+* release organization resources on disconnect ([0381164](https://github.com/CoCreateJS/crud-server/commit/0381164a2dfe1952c8a7e7fff0f8cb560d0f519f))
+* route component responses through unified server send ([8d7a1cf](https://github.com/CoCreateJS/crud-server/commit/8d7a1cf023156bc84ba1456eb693bc3afb4f68d6))
+* route CRUD responses through server send ([8359341](https://github.com/CoCreateJS/crud-server/commit/83593410d177b0344c5e5643ea06dda95a0381f2))
+
 ## [2.0.1](https://github.com/CoCreateJS/crud-server/compare/v2.0.0...v2.0.1) (2026-11-05)
 
 
