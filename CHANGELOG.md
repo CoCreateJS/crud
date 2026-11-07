@@ -1,3 +1,10 @@
+## [2.0.4](https://github.com/CoCreateJS/crud/compare/v2.0.3...v2.0.4) (2026-11-07)
+
+
+### Bug Fixes
+
+* bump CoCreate dependency versions ([c9857b2](https://github.com/CoCreateJS/crud/commit/c9857b220a1402896e9214fcccd8da697588364f))
+
 ## [2.0.3](https://github.com/CoCreateJS/crud/compare/v2.0.2...v2.0.3) (2026-11-07)
 
 
