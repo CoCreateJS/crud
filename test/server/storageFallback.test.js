@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
     resolveOrganizationStorageFallback
-} from '../src/storageFallback.js';
+} from '../../src/server/storageFallback.js';
 
 test('storage fallback defaults to platform default storage and tenant database', () => {
     assert.deepEqual(

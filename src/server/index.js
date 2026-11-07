@@ -45,10 +45,10 @@ function sendToServer(data) {
     delete envelope.replyOrganizationId;
     try {
         return Promise.resolve(server.send(envelope)).catch(error => {
-            console.error('[@cocreate/crud-server] Response delivery failed:', error);
+            console.error('[@cocreate/crud/server] Response delivery failed:', error);
         });
     } catch (error) {
-        console.error('[@cocreate/crud-server] Response delivery failed:', error);
+        console.error('[@cocreate/crud/server] Response delivery failed:', error);
     }
 }
 
@@ -372,7 +372,7 @@ function applyFilterMetadata(data, startingIndex) {
     data.filter.index = startingIndex + data[type].length;
 }
 
-export default {
+const serverModule = {
     init,
     config,
     send,
@@ -382,9 +382,12 @@ export default {
     drivers
 };
 
+export { serverModule as crudServer };
+export default serverModule;
+
 /**
  * High-performance, multi-tenant server-side CRUD orchestration engine supporting parallel multi-database writing, real-time sync, and tenant-isolated data routing across 20+ database engines.
  *
- * @module crud-server
+ * @module @cocreate/crud/server
  * @environment server
  */

@@ -3,13 +3,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const test = require('node:test');
-const read = file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8');
+const read = file => fs.readFileSync(path.join(__dirname, '../../src/server', file), 'utf8');
 const context = vm.createContext({ getDriver: async () => { throw Error('Unexpected driver lookup'); } });
 vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), context);
 const resolveStorage = context.getStorage;
 const fallbackModules = Promise.all([
-    import('../src/routing.js'),
-    import('../src/storageFallback.js')
+    import('../../src/server/routing.js'),
+    import('../../src/server/storageFallback.js')
 ]);
 const index = read('index.js');
 const start = index.indexOf('let storage = await getStorage(');

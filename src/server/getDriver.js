@@ -34,7 +34,7 @@ export const drivers = new Map();
 
 function logPrefix() {
     const workerId = process.env.WORKER_ID;
-    return `[@cocreate/crud-server] ${workerId ? `[WORKER ${workerId}]` : '[MASTER]'}`;
+    return `[@cocreate/crud/server] ${workerId ? `[WORKER ${workerId}]` : '[MASTER]'}`;
 }
 
 /**
@@ -139,7 +139,7 @@ export function registerDriver(provider, driver) {
  */
 export async function getDriver(provider) {
     if (!provider) {
-        throw new Error('[@cocreate/crud-server] Provider name must be provided to getDriver()');
+        throw new Error('[@cocreate/crud/server] Provider name must be provided to getDriver()');
     }
 
     const key = provider.toLowerCase();
@@ -170,7 +170,7 @@ export async function getDriver(provider) {
     }
 
     throw new Error(
-        `[@cocreate/crud-server] Driver for provider "${provider}" ` +
+        `[@cocreate/crud/server] Driver for provider "${provider}" ` +
         `(mapped to "${resolvedProvider}") was not found in: ${STORAGE_DIRS.join(', ')}`
     );
 }

@@ -1,7 +1,7 @@
 {
-  "name": "@cocreate/crud-server",
+  "name": "@cocreate/crud",
   "version": "2.0.2",
-  "description": "High-performance, multi-tenant server-side CRUD orchestration engine supporting parallel multi-database writing, real-time sync, and tenant-isolated data routing across 20+ database engines.",
+  "description": "CoCreate CRUD client and server interfaces for unified data operations.",
   "keywords": [
     "multi-database",
     "parallel-writing",
@@ -29,10 +29,24 @@
   },
   "scripts": {
     "demo": "PORT=5000 node demo/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/server/*.test.js test/server/*.test.cjs test/client/*.test.cjs",
+    "test:server": "node --test test/server/*.test.js test/server/*.test.cjs",
+    "test:client": "node --test test/client/*.test.cjs",
+    "build": "webpack --mode=production --config webpack.client.config.js",
+    "dev": "webpack --config webpack.client.config.js --watch"
   },
   "type": "module",
-  "main": "./src/index.js",
+  "main": "./src/server/index.js",
+  "browser": "./src/client/index.js",
+  "exports": {
+    ".": {
+      "node": "./src/server/index.js",
+      "browser": "./src/client/index.js",
+      "default": "./src/server/index.js"
+    },
+    "./server": "./src/server/index.js",
+    "./client": "./src/client/index.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CoCreateJS/crud-server.git"
@@ -45,6 +59,11 @@
   "homepage": "https://CoCreateJS.com/docs/CoCreate-crud-server",
   "dependencies": {
     "@cocreate/config": "^2.0.0",
-    "@cocreate/utils": "^2.0.0"
+    "@cocreate/utils": "^2.0.0",
+    "@cocreate/indexeddb": "^2.0.0",
+    "@cocreate/socket": "^2.0.1"
+  },
+  "devDependencies": {
+    "@cocreate/webpack": "^2.0.0"
   }
 }

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { GetOrganization } from '../src/getOrganization.js';
-import { isPlatformArray } from '../src/routing.js';
-import { resolveOrganizationStorageFallback } from '../src/storageFallback.js';
+import { GetOrganization } from '../../src/server/getOrganization.js';
+import { isPlatformArray } from '../../src/server/routing.js';
+import { resolveOrganizationStorageFallback } from '../../src/server/storageFallback.js';
 
 test('organization registry reads do not receive the platform host fallback', () => {
     assert.equal(isPlatformArray('organizations'), true);
@@ -121,7 +121,7 @@ test('an unresolved host falls back to organization_id', async () => {
 // Exercise the resolver's recursive CRUD calls as well as the first tenant
 // write. Storage is in memory; no database or API requests leave this process.
 async function createTenantResolver(t, options = {}) {
-    const { getStorage } = await import('../src/getStorage.js');
+    const { getStorage } = await import('../../src/server/getStorage.js');
     const existingListeners = new Set(process.listeners('orgDisconnected'));
     const resolver = new GetOrganization();
     const evictionListener = process.listeners('orgDisconnected').find(listener => !existingListeners.has(listener));
@@ -281,7 +281,7 @@ test('an unknown hostname alone cannot fabricate an organization identity', asyn
 });
 
 test('Socket Server local orgDisconnected clears only that organization resolver cache', async t => {
-    const { SocketServer } = await import('../../socket/src/server/index.js');
+    const { SocketServer } = await import('../../../socket/src/server/index.js');
     const previous = new Set(process.listeners('orgDisconnected'));
     const resolver = new GetOrganization();
     t.after(() => {
@@ -304,7 +304,7 @@ test('Socket Server local orgDisconnected clears only that organization resolver
 
 
 test('own-organization disconnect clears resolver presence while bootstrap config remains available', async t => {
-    const { SocketServer } = await import('../../socket/src/server/index.js');
+    const { SocketServer } = await import('../../../socket/src/server/index.js');
     const previous = new Set(process.listeners('orgDisconnected'));
     const resolver = new GetOrganization();
     const reports = [];

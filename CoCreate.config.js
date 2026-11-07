@@ -13,13 +13,13 @@ export default {
             "object": {
                 "_id": "6204253480b409001727b73e",
                 "name": "index.html",
-                "path": "/docs/crud-server",
-                "pathname": "/docs/crud-server/index.html",
+                "path": "/docs/crud",
+                "pathname": "/docs/crud/index.html",
                 "src": "{{./docs/index.html}}",
                 "host": [
                     "*"
                 ],
-                "directory": "crud-server",
+                "directory": "crud",
                 "content-type": "text/html",
                 "public": "true"
             }

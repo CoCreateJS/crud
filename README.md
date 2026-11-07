@@ -1,6 +1,19 @@
-# @cocreate/crud-server
+# @cocreate/crud
 
-A high-performance, multi-tenant database orchestration and synchronization routing layer. It dynamically manages distributed data architectures, allowing applications to read from and write to multiple databases simultaneously in parallel using a single unified payload object. It handles tenant-isolated workspace caching, orchestrates cross-database data synchronization, and bridges real-time WebSocket communication matrices with structural persistence.
+Unified CoCreate CRUD package containing the client and server implementations. This package combines the existing `@cocreate/crud-client` and `@cocreate/crud-server` source trees while those packages remain available independently during migration.
+
+## Entry points
+
+```js
+import { crudServer } from '@cocreate/crud';
+import { crudClient } from '@cocreate/crud/client';
+```
+
+The package root resolves to the server implementation in Node and the client implementation in browsers. The source lives in `src/server` and `src/client`; matching tests live in `test/server` and `test/client`.
+
+## Server
+
+The server runtime accepts a unified payload and routes operations to configured storage adapters. Initialize it with the CoCreate server, then call `send()` with CRUD envelopes.
 
 ---
 
@@ -12,7 +25,7 @@ A high-performance, multi-tenant database orchestration and synchronization rout
 * [Usage](#usage)
 A high-performance, multi-tenant database orchestration and synchronization routing layer.
 
-This README focuses on the unified payload contract and practical examples so integrators immediately understand how to use the server-side CRUD router. The `@cocreate/crud-server` runtime accepts a single standardized payload object and routes it to the appropriate storage adapters (one or many) and transports (local drivers, remote sockets).
+The server runtime accepts a single standardized payload object and routes it to the appropriate storage adapters (one or many) and transports (local drivers, remote sockets).
 
 Summary
 - Single, unified payload contract drives all operations (`method` determines behavior).
@@ -38,12 +51,12 @@ Features
 
 Installation
 ```bash
-npm install @cocreate/crud-server
+npm install @cocreate/crud
 ```
 
 Quick start — initialize during server bootstrap
 ```javascript
-import crudServer from '@cocreate/crud-server';
+import { crudServer } from '@cocreate/crud';
 import CoCreateServer from '@cocreate/cluster';
 
 const server = await CoCreateServer.start();
@@ -144,7 +157,7 @@ await crudServer.send({
 ```
 
 WebSocket / transport patterns
-- The client-side `@cocreate/crud-client` sends the same unified payload via `crud.send()` which will route the request locally (IndexedDB) and remotely via `crud.socket.send()`.
+- The client-side `@cocreate/crud/client` sends the same unified payload via `crud.send()` and can route eligible requests through IndexedDB and the CoCreate socket client.
 - On the server, socket messages map directly into the same `crudServer.send(payload)` contract. This keeps the client and server API identical and stateless.
 
 `await crudServer.send(payload)` returns the processed storage response independently of message delivery. Delivery failures are reported without retrying the operation or leaving its promise pending. Only successful create, update, and delete operations emit `crud-event`; reads do not invalidate authorization caches.

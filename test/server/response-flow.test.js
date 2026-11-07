@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
 import test from 'node:test';
 
 // Exercise the real dispatcher with isolated storage and transport services.
-const source = fs.readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../../src/server/index.js', import.meta.url), 'utf8');
 const helperStart = source.indexOf('function sendToServer(data)');
 const helper = source.slice(helperStart, source.indexOf('\nfunction normalizeOrganizationStorageFallback', helperStart));
 const sendStart = source.indexOf('async function send(data)');

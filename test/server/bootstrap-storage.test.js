@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import Config, { registerAdapter } from '../../config/src/core.js';
-import { promptBootstrapStorage } from '../src/bootstrapStorage.js';
+import Config, { registerAdapter } from '../../../config/src/core.js';
+import { promptBootstrapStorage } from '../../src/server/bootstrapStorage.js';
 
 function configure({ local = {}, global = {}, env = {}, answers = [] } = {}) {
     Config.clear();
