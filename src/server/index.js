@@ -36,7 +36,6 @@ let server = null;
  */
 let config = null;
 let initialized = false;
-let wsManager = null;
 let getOrganization = null;
 let crudServer = null;
 
@@ -102,10 +101,6 @@ export async function init(Server) {
 
     server = Server || null;
 
-    if (server && server.wsManager) {
-        wsManager = server.wsManager;
-    }
-
     config = await Config.prompt({
         'organization_id': { prompt: 'Enter your organization_id: ' },
         'host': { prompt: 'Enter your host: ' }
@@ -149,27 +144,15 @@ export async function init(Server) {
 
     await loadCrudConfig();
 
-    const bindSocketListeners = () => {
-        if (!wsManager && server && server.wsManager) {
-            wsManager = server.wsManager;
+    const types = ['storage', 'database', 'array', 'index', 'object'];
+    const methods = ['create', 'read', 'update', 'delete'];
+
+    for (const type of types) {
+        for (const method of methods) {
+            const action = `${type}.${method}`;
+            server.on(action, data => send(data));
         }
-
-        if (wsManager) {
-            const types = ['storage', 'database', 'array', 'index', 'object'];
-            const methods = ['create', 'read', 'update', 'delete'];
-
-            for (let i = 0; i < types.length; i++) {
-                for (let j = 0; j < methods.length; j++) {
-                    const action = types[i] + '.' + methods[j];
-                    wsManager.on(action, (data) => send(data));
-                }
-            }
-        } else {
-            setTimeout(bindSocketListeners, 500);
-        }
-    };
-
-    bindSocketListeners();
+    }
 
     return crudServer;
 }
