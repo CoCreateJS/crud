@@ -40,3 +40,30 @@ test('partial cached page still refreshes from server', async () => {
     assert.equal(result.object, cached);
     assert.equal(sent.length, 1);
 });
+
+test('update transport excludes the full cache-only snapshot', async () => {
+    const cached = [{ _id: 'id', organization_id: 'org', $set: { name: 'new' }, $update: { _id: 'id', name: 'new', other: 'local' } }];
+    const { crud, sent } = client(cached);
+    const result = await crud.send({ method: 'object.update', object: { _id: 'id', $set: { name: 'new' } } });
+    assert.equal(sent.length, 1);
+    assert.equal('$update' in sent[0].object[0], false);
+    assert.equal('other' in sent[0].object[0], false);
+    assert.equal(sent[0].object[0].$set.name, 'new');
+    assert.ok(result.object[0].$update, 'The local caller may still use its cache snapshot');
+});
+
+test('received patches do not upsert incomplete cache records or mutate shared socket payloads', async () => {
+    const sync = source.slice(source.indexOf('sync: async function'), source.indexOf('    syncServer: function')).trim().replace(/,$/, '');
+    let cached;
+    const crud = vm.runInNewContext('({' + sync + '})', {
+        isBrowser: true, structuredClone,
+        dbInstance: { send: async data => { cached = data; data.object[0].$update = { unrelated: 'cache snapshot' }; } }
+    });
+    crud.socket = { frameId: 'frame' };
+    const data = { method: 'object.update', uuid: 'request', status: 'received', receiverFrameId: 'frame',
+        object: [{ _id: 'id', $set: { name: 'new' } }], upsert: true };
+    await crud.sync(data);
+    assert.equal(cached.upsert, false);
+    assert.equal('$update' in data.object[0], false);
+    assert.equal(data.object[0].$set.name, 'new');
+});

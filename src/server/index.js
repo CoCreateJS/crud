@@ -17,18 +17,19 @@
  ********************************************************************************/
 
 import Config from '@cocreate/config';
+import { EventEmitter } from 'node:events';
+import { createDB, resolveDirectory } from '@cocreate/db';
 import { dotNotationToObject, sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
 import { getDriver, registerDriver, drivers } from './getDriver.js';
-import { includesFileArray, isPlatformArray } from './routing.js';
 import { getStorage as resolveStorage } from './getStorage.js';
-import { promptBootstrapStorage } from './bootstrapStorage.js';
 import {
     defaultOrganizationStorageFallback,
     resolveOrganizationStorageFallback
 } from './storageFallback.js';
 
 let server = null;
+let db = null;
 /**
  *
  * @public
@@ -36,7 +37,6 @@ let server = null;
  */
 let config = null;
 let initialized = false;
-let readRoutingReady = false;
 let getOrganization = null;
 let crudServer = null;
 
@@ -89,32 +89,35 @@ export async function loadCrudConfig() {
 
 /**
  * Initializes the CrudServer module, prompts/loads configuration, and binds socket listeners.
- * Drivers are resolved strictly on demand during send() query dispatch.
+ * The DB service is bound before organization/configuration reads begin.
  *
  * @param {Object} Server - CoCreateServer instance context
+ * @param {Object} [options.config] - Supplied bootstrap configuration for noninteractive callers
  * @returns {Promise<Object>} Initialized CrudServer module API instance
  * @public
  * @environment server
  */
-export async function init(Server) {
+export async function init(Server, options = {}) {
     if (initialized) return crudServer;
     initialized = true;
 
-    server = Server || null;
+    server = Server || Object.assign(new EventEmitter(), { send: async data => data });
 
-    config = await Config.prompt({
+    config = options.config ? { ...options.config } : await Config.prompt({
         'organization_id': { prompt: 'Enter your organization_id: ' },
         'host': { prompt: 'Enter your host: ' }
     });
-    config.storage = await promptBootstrapStorage(Config);
-    const primaryStorage = config.storage;
     normalizeOrganizationStorageFallback();
 
     if (!config.organization_id) throw new Error('Missing bootstrap organization_id.');
 
-    // Resolve the bootstrap driver before the server persists lifecycle state
-    // or forks workers. Other configured providers remain lazy-loaded.
-    await getDriver(primaryStorage.provider);
+    db = server.DB ?? createDB({
+        directory: await resolveDirectory({
+            directory: config.db?.directory ?? config.crud?.directory ?? config.storage?.directory,
+            configPath: config.configPath
+        }),
+        memoryCache: false
+    });
 
     crudServer = {
         config,
@@ -142,9 +145,10 @@ export async function init(Server) {
 
     getOrganization = GetOrganization.init(crudServer);
     crudServer.getOrganization = getOrganization;
+    // Logging can issue CRUD while the initial DB preload/config read is pending.
+    if (server) server.crud = crudServer;
 
     await loadCrudConfig();
-    readRoutingReady = true;
 
     const types = ['storage', 'database', 'array', 'index', 'object'];
     const methods = ['create', 'read', 'update', 'delete'];
@@ -161,7 +165,7 @@ export async function init(Server) {
 
 /**
  * Main CRUD payload dispatcher.
- * Resolves organization context, determines target storage driver, and executes query.
+ * Resolves organization/hostname defaults and calls CoCreateDB directly.
  *
  * @param {Object} data - Request query payload
  * @returns {Promise<Object>} Processed response payload
@@ -176,11 +180,7 @@ async function send(data) {
             return data;
         }
 
-        if (
-            !data.host &&
-            data.organization_id === config.organization_id &&
-            !isPlatformArray(data.array)
-        ) {
+        if (data.host === undefined && data.organization_id === config.organization_id) {
             data.host = config.host;
         }
 
@@ -200,91 +200,21 @@ async function send(data) {
 
             for (let i = 0; i < host.length; i++) {
                 if (host[i].name === hostname) {
-                    if (host[i].storage) data.storage = host[i].storage;
+                    if (!data.storage && host[i].storage) data.storage = host[i].storage;
                     if (!data.database && host[i].database) data.database = host[i].database;
-                    if (host[i].array) data.array = host[i].array;
                     break;
                 }
             }
         }
 
-        // A host-specific database is honored above. Otherwise, keep each
-        // organization in its own database and avoid MongoDB's URI/test
-        // database fallback.
-        if (!data.database) {
-            data.database = data.organization_id;
-        }
-
-        // Opt-in process-local read routing for storage comparisons. Apply it
-        // after host/database resolution so a benchmark can target one database.
-        const readStorage = process.env?.COCREATE_CRUD_READ_STORAGE?.trim();
-        const readDatabase = process.env?.COCREATE_CRUD_READ_DATABASE?.trim();
-        if (readRoutingReady && readStorage && data.method === 'object.read' &&
-            (!readDatabase || readDatabase === data.database)) {
-            data.storage = readStorage;
-        }
+        data.storage ||= 'production';
+        data.database ||= 'app';
 
         const filterStartingIndex =
             data.filter?.startingIndex ?? data.filter?.index ?? 0;
 
-        const storageNames = data.storage
-            ? (Array.isArray(data.storage) ? data.storage : [data.storage])
-            : [undefined];
-
-        for (let i = 0; i < storageNames.length; i++) {
-            if (storageNames[i] === 'db') {
-                const driver = await getDriver('db');
-                if (!driver || typeof driver.send !== 'function') {
-                    throw new Error('The local DB driver is not registered.');
-                }
-                data = await driver.send(data);
-                continue;
-            }
-
-            let storage = await getStorage(
-                organization,
-                data.organization_id,
-                storageNames[i]
-            );
-
-            if (!storage) {
-                const fallback = includesFileArray(data.array)
-                    ? {
-                        storage: undefined,
-                        database: data.organization_id
-                    }
-                    : resolveOrganizationStorageFallback(
-                        config,
-                        data.organization_id
-                    );
-                if (!fallback) {
-                    throw new Error(
-                        `Storage is not configured for organization "${data.organization_id}" and organization storage fallback is disabled`
-                    );
-                }
-
-                data.database = fallback.database;
-                storage = await getStorage(
-                    config,
-                    config.organization_id,
-                    fallback.storage
-                );
-                if (!storage) throw new Error("Server storage is not configured");
-            }
-
-            if (storage && storage.provider) {
-                data.storageConfig = storage;
-
-                // Each storage name resolves to one API record; the driver reads its own credentials.
-                const driver = await getDriver(storage.provider);
-
-                if (driver && typeof driver.send === 'function') {
-                    data = await driver.send(data);
-                } else {
-                    throw new Error(`Storage driver for provider "${storage.provider}" does not implement a send() method.`);
-                }
-            }
-        }
+        delete data.storageConfig;
+        data = await db.send(data);
 
         applyFilterMetadata(data, filterStartingIndex);
 

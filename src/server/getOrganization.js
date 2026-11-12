@@ -15,7 +15,6 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  ********************************************************************************/
 
-import { resolveOrganizationStorageFallback } from './storageFallback.js';
 
 export class GetOrganization {
     constructor() {
@@ -102,14 +101,12 @@ export class GetOrganization {
 
         let query = {
             method: 'object.read',
-            database: config.organization_id,
+            storage: 'production',
+            database: 'app',
             array: 'organizations',
+            host: null,
             organization_id: config.organization_id
         };
-
-        if (this.organizations[data.organization_id]) {
-            if (!data.database) data.database = data.organization_id;
-        }
 
         if (data.organization_id) {
             query.object = [{ _id: data.organization_id }];
@@ -137,18 +134,10 @@ export class GetOrganization {
         }
 
         let platformOrganization = organization?.object?.[0];
-        if (!platformOrganization && data.organization_id) {
-            const storage = config.bootstrapStorage || config.storage;
-            if (storage?.name && storage?.provider &&
-                resolveOrganizationStorageFallback(config, data.organization_id)) {
-                // A registry record is optional when the organization ID is
-                // known and the existing platform storage fallback can connect.
-                // Storage selection remains the CRUD dispatcher's responsibility.
-                platformOrganization = {
-                    _id: data.organization_id,
-                    organization_id: data.organization_id
-                };
-            }
+        if (!platformOrganization && data.organization_id === config.organization_id) {
+            // The configured organization can bootstrap itself through local CRUD
+            // before its organization/key records have been created.
+            platformOrganization = { ...config, _id: config.organization_id, organization_id: config.organization_id };
         }
         if (platformOrganization) {
             const organizationId = platformOrganization._id;
@@ -160,9 +149,11 @@ export class GetOrganization {
             try {
                 tenant = await sendFn({
                     method: 'object.read',
-                    database: organizationId,
+                    storage: 'production',
+                    database: 'app',
                     organization_id: organizationId,
                     array: 'organizations',
+                    host: null,
                     object: [{ _id: organizationId }]
                 });
             } catch (error) {

@@ -11,7 +11,7 @@ const helper = source.slice(helperStart, source.indexOf('\nfunction normalizeOrg
 const sendStart = source.indexOf('async function send(data)');
 const dispatcher = source.slice(sendStart, source.indexOf('\n/**', sendStart));
 
-function fixture({ deliver, driver, env = {}, ready = true } = {}) {
+function fixture({ deliver, driver, organization = {}, env = {}, ready = true } = {}) {
     const sent = [];
     const errors = [];
     const events = new EventEmitter();
@@ -21,10 +21,10 @@ function fixture({ deliver, driver, env = {}, ready = true } = {}) {
     const driverLookups = [];
     events.on('crud-event', data => changes.push(data));
     const send = vm.runInNewContext(`${helper}\n${dispatcher}\nsend`, {
-        server: { send(data) { sent.push(data); return deliver?.(data); } },
+        server: { crud: ready ? {} : null, send(data) { sent.push(data); return deliver?.(data); } },
         config: { organization_id: 'platform' },
-        readRoutingReady: ready,
-        getOrganization: async () => ({}),
+        db: { send: driver || (async data => ({ ...data, object: [{ _id: 'record' }] })) },
+        getOrganization: async () => organization,
         getStorage: async (...args) => {
             storageLookups.push(args);
             return { provider: 'mock', secret: 'storage-secret' };
@@ -42,24 +42,6 @@ function fixture({ deliver, driver, env = {}, ready = true } = {}) {
     });
     return { send, sent, errors, changes, storageLookups, driverLookups };
 }
-
-test('storage db dispatches directly to its registered local driver without an API lookup', async () => {
-    const received = [];
-    const f = fixture({ driver: async data => {
-        received.push(data);
-        return { ...data, object: [{ _id: 'local-db-record' }] };
-    } });
-    const result = await f.send({
-        method: 'object.read', organization_id: 'tenant', database: 'tenant', array: 'files', storage: 'db'
-    });
-
-    assert.equal(result.object[0]._id, 'local-db-record');
-    assert.deepEqual(f.driverLookups, ['db']);
-    assert.equal(f.storageLookups.length, 0);
-    assert.equal(received[0].organization_id, 'tenant');
-    assert.equal(received[0].database, 'tenant');
-    assert.equal(received[0].array, 'files');
-});
 
 test('reads return their result without triggering mutation listeners', async () => {
     const f = fixture();
@@ -129,43 +111,69 @@ test('driver failures return an error without exposing storage credentials', asy
 });
 
 
-test('process read override covers every array in the selected database', async () => {
-    const f = fixture({ env: {
-        COCREATE_CRUD_READ_STORAGE: 'db', COCREATE_CRUD_READ_DATABASE: 'dev'
-    } });
-    for (const array of ['files', 'keys', 'application-data']) {
-        const response = await f.send({
-            method: 'object.read', organization_id: 'tenant', database: 'dev', array, storage: 'existing'
+for (const type of ['object', 'array', 'database']) {
+    for (const operation of ['create', 'read', 'update', 'delete']) {
+        test(`direct DB dispatch handles ${type}.${operation} without routing environment variables`, async () => {
+            const f = fixture();
+            const response = await f.send({
+                method: `${type}.${operation}`, organization_id: 'tenant', database: 'dev', array: 'files'
+            });
+            assert.equal(response.error, undefined);
+            assert.equal(response.storage, 'production');
+            assert.deepEqual(f.driverLookups, []);
+            assert.equal(f.storageLookups.length, 0);
         });
-        assert.equal(response.storage, 'db');
     }
-    assert.deepEqual(f.driverLookups, ['db', 'db', 'db']);
+}
+
+test('direct DB dispatch executes a mutation once despite old client storage names', async () => {
+    const f = fixture();
+    await f.send({ method: 'object.update', organization_id: 'tenant', database: 'dev', array: 'files', storage: 'development' });
+    assert.deepEqual(f.driverLookups, []);
+    assert.equal(f.storageLookups.length, 0);
+    assert.equal(f.changes.length, 1);
+});
+
+test('direct DB dispatch covers platform databases and bootstrap reads', async () => {
+    const f = fixture({ ready: false });
+    await f.send({ method: 'object.read', organization_id: 'tenant', database: 'platform', array: 'organizations' });
+    assert.deepEqual(f.driverLookups, []);
     assert.equal(f.storageLookups.length, 0);
 });
 
-test('scoped read override preserves other databases and all mutations', async () => {
-    const f = fixture({ env: {
-        COCREATE_CRUD_READ_STORAGE: 'db', COCREATE_CRUD_READ_DATABASE: 'dev'
+test('direct DB dispatch does not pass old storage credentials to DB', async () => {
+    const f = fixture({ driver: async data => {
+        assert.equal(data.storageConfig, undefined);
+        return { ...data, object: [] };
     } });
-    await f.send({ method: 'object.read', organization_id: 'tenant', database: 'platform', array: 'organizations' });
-    for (const method of ['object.create', 'object.update', 'object.delete'])
-        await f.send({ method, organization_id: 'tenant', database: 'dev', array: 'files' });
-    assert.deepEqual(f.driverLookups, ['mock', 'mock', 'mock', 'mock']);
-    assert.equal(f.storageLookups.length, 4);
+    await f.send({ method: 'object.read', organization_id: 'tenant', array: 'files', storageConfig: { provider: 'mongodb', secret: 'old' } });
+    assert.deepEqual(f.driverLookups, []);
 });
 
-test('unscoped read override is opt-in and can apply across databases', async () => {
-    const f = fixture({ env: { COCREATE_CRUD_READ_STORAGE: 'db' } });
-    await f.send({ method: 'object.read', organization_id: 'tenant', array: 'files' });
-    assert.deepEqual(f.driverLookups, ['db']);
-    const defaults = fixture();
-    await defaults.send({ method: 'object.read', organization_id: 'tenant', array: 'files' });
-    assert.deepEqual(defaults.driverLookups, ['mock']);
+test('bootstrap selects DB and publishes CRUD before awaiting database config', () => {
+    const initSource = source.slice(source.indexOf('export async function init('), source.indexOf('async function send(data)'));
+    assert.match(initSource, /db = server.DB \?\? createDB/);
+    assert.equal(initSource.includes("getDriver('db'"), false);
+    assert.ok(initSource.indexOf('server.crud = crudServer') < initSource.indexOf('await loadCrudConfig()'));
+    assert.equal(initSource.includes('getDriver(primaryStorage.provider)'), false);
 });
 
-
-test('read override stays inactive while CRUD loads its bootstrap configuration', async () => {
-    const f = fixture({ ready: false, env: { COCREATE_CRUD_READ_STORAGE: 'db' } });
-    await f.send({ method: 'object.read', organization_id: 'tenant', database: 'dev', array: 'servers_config' });
-    assert.deepEqual(f.driverLookups, ['mock']);
+test('CRUD resolves host defaults, preserves explicit namespace values, and never rewrites array', async () => {
+    const organization = { host: [{ name: 'example.test', storage: 'development', database: 'website', array: 'ignored' }] };
+    const f = fixture({ organization });
+    const defaults = await f.send({ method: 'object.read', organization_id: 'tenant', host: 'example.test', array: 'caller' });
+    assert.equal(defaults.storage, 'development');
+    assert.equal(defaults.database, 'website');
+    assert.equal(defaults.array, 'caller');
+    const explicit = await f.send({ method: 'object.read', organization_id: 'tenant', host: 'example.test', storage: 'test', database: 'custom', array: 'caller' });
+    assert.equal(explicit.storage, 'test');
+    assert.equal(explicit.database, 'custom');
+    assert.equal(explicit.array, 'caller');
+    const missingArray = await f.send({ method: 'object.read', organization_id: 'tenant', host: 'example.test' });
+    assert.equal(missingArray.array, undefined);
+    const fallback = await f.send({ method: 'object.read', organization_id: 'tenant' });
+    assert.equal(fallback.storage, 'production');
+    assert.equal(fallback.database, 'app');
+    assert.equal(fallback.array, undefined);
+    assert.deepEqual(f.driverLookups, []);
 });

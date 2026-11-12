@@ -62,7 +62,7 @@ test('host registry lookup routes through the platform organization without a to
 
     await resolver.getOrg({ host: 'platform.example.com' });
 
-    assert.equal(query.host, undefined);
+    assert.equal(query.host, null);
     assert.equal(query.organization_id, 'platform');
     assert.equal(
         query.filter.query.host.$elemMatch.name.$in[0],
@@ -241,28 +241,12 @@ for (const tenant of [undefined, { _id: 'tenant', name: 'Tenant name' }]) {
     });
 }
 
-for (const tenant of [
-    undefined,
-    { _id: 'tenant', name: 'Tenant without registry record' },
-    { _id: 'tenant', name: 'Tenant with its own storage', bootstrapStorage: { name: 'own', provider: 'custom', endpoint: 'test-only' } }
-]) {
-    test(`platform storage works without a registry record (${tenant ? 'existing' : 'empty'} tenant organization)`, async t => {
-        const { resolver, runtime, requests } = await createTenantResolver(t, { missingPlatform: true, tenant });
-        const resolved = await resolver.getOrganization({ organization_id: 'tenant' });
-        assert.equal(resolved.error, undefined);
-        assert.equal(resolved._id, 'tenant');
-        assert.equal(resolved.name, tenant?.name);
-        assert.equal(resolved.bootstrapStorage, tenant?.bootstrapStorage);
-        assert.equal(resolved.storage, undefined, 'Let CRUD apply its configured storage fallback');
-        assert.equal(requests.length, 2);
-        const result = await runtime.send({
-            method: 'object.create', organization_id: 'tenant', array: 'organizations',
-            object: { _id: 'tenant', name: 'First write using platform storage' }
-        });
-        assert.equal(result.error, undefined);
-        assert.equal(result.object[0].name, 'First write using platform storage');
-    });
-}
+test('provider fallback no longer supplies a missing organization registry record', async t => {
+    const { resolver, requests } = await createTenantResolver(t, { missingPlatform: true });
+    const resolved = await resolver.getOrganization({ organization_id: 'tenant' });
+    assert.match(resolved.error, /organization could not be found/);
+    assert.equal(requests.length, 1);
+});
 
 test('missing registry data does not enable a disabled platform storage fallback', async t => {
     const { resolver, requests } = await createTenantResolver(t, {
@@ -326,4 +310,13 @@ test('own-organization disconnect clears resolver presence while bootstrap confi
     assert.equal(resolver.organizations.tenant, undefined);
     assert.equal(resolver.hosts['tenant.test'], undefined);
     assert.equal(resolver.crud.config, bootstrap);
+});
+
+test('configured organization can bootstrap through production/app without provider selection', async () => {
+    const resolver = new GetOrganization();
+    const requests = [];
+    resolver.crud = { getConfig: () => ({ organization_id: 'platform' }), send: async request => { requests.push(request); return { object: [] }; } };
+    const resolved = await resolver.getOrganization({ organization_id: 'platform' });
+    assert.equal(resolved._id, 'platform');
+    assert.ok(requests.every(request => request.storage === 'production' && request.database === 'app' && request.host === null));
 });

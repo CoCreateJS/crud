@@ -135,9 +135,10 @@ export function registerDriver(provider, driver) {
  * Resolves and returns a storage driver instance from memory cache or a storages/ directory.
  * 
  * @param {string} provider - Storage provider name (e.g. 'mongodb', 'cosmosdb')
+ * @param {Object} [options] - Standalone local DB directory/configuration context
  * @returns {Promise<Object>} Resolved storage driver instance
  */
-export async function getDriver(provider) {
+export async function getDriver(provider, options = {}) {
     if (!provider) {
         throw new Error('[@cocreate/crud/server] Provider name must be provided to getDriver()');
     }
@@ -167,6 +168,13 @@ export async function getDriver(provider) {
             console.error(`${logPrefix()} Failed to import driver from ${driverPath}:`, err.message);
             throw err;
         }
+    }
+
+    // A server may register its distributed DB instance first. Standalone callers
+    // use the same provider through a local instance initialized by the service.
+    if (resolvedProvider === 'db') {
+        const { createLocalDB } = await import('./localDB.js');
+        return registerDriver(key, await createLocalDB(options));
     }
 
     throw new Error(

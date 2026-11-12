@@ -7,74 +7,34 @@ const read = file => fs.readFileSync(path.join(__dirname, '../../src/server', fi
 const context = vm.createContext({ getDriver: async () => { throw Error('Unexpected driver lookup'); } });
 vm.runInContext(read('getStorage.js').replace(/^import .*;$/gm, '').replace('export async function', 'async function').replace('export default getStorage;', ''), context);
 const resolveStorage = context.getStorage;
-const fallbackModules = Promise.all([
-    import('../../src/server/routing.js'),
-    import('../../src/server/storageFallback.js')
-]);
-const index = read('index.js');
-const start = index.indexOf('let storage = await getStorage(');
-const block = index.slice(start, index.indexOf('if (storage && storage.provider)', start));
-async function route(organization, data, config) {
-    const [{ includesFileArray }, { resolveOrganizationStorageFallback }] = await fallbackModules;
-    return vm.runInNewContext('(async () => {' + block + 'return storage;})()', {
-        organization, data, config, storageNames: [undefined], i: 0,
-        includesFileArray,
-        resolveOrganizationStorageFallback,
-        getStorage: (organization, organizationId, name) => resolveStorage({ organization, organizationId, name })
+const source = read('index.js');
+const sendCode = source.slice(source.indexOf('async function send(data)'), source.indexOf('\n/**', source.indexOf('async function send(data)')));
+async function route(organization, request) {
+    let received;
+    const send = vm.runInNewContext(sendCode + '\nsend', {
+        config: { organization_id: 'platform', storage: { provider: 'mongodb', connectionString: 'unused' }, organizationStorageFallback: false },
+        getOrganization: async () => organization,
+        db: { send: async data => { received = data; return { ...data, success: true, object: [] }; } },
+        getDriver: async () => { throw Error('Unexpected driver selection'); },
+        getStorage: async () => { throw Error('Unexpected provider selection'); },
+        applyFilterMetadata() {}, sendToServer() {},
+        process: { emit() {} }, console
     });
+    const response = await send(request);
+    assert.equal(response.error, undefined);
+    return received;
 }
-const config = { organization_id: 'platform', storage: { name: 'platform', provider: 'mongodb', connectionString: 'platform-url' } };
-test('missing tenant storage returns no result', async () => {
-    assert.equal(await resolveStorage({ organization: {}, organizationId: 'tenant' }), undefined);
+
+test('legacy provider configuration does not choose a backend or change namespace defaults', async () => {
+    const data = await route({ bootstrapStorage: { name: 'mongo', provider: 'mongodb' } }, { method: 'object.read', organization_id: 'tenant', array: 'files' });
+    assert.equal(data.storage, 'production');
+    assert.equal(data.database, 'app');
+    assert.equal(data.array, 'files');
 });
-for (const host of ['platform.example.com', 'custom.example.com']) {
-    test(`fallback forces tenant database regardless of host: ${host}`, async () => {
-        const organization = { _id: 'tenant' };
-        const data = { organization_id: 'tenant', database: 'another-database', host };
-        const storage = await route(organization, data, config);
-        assert.equal(storage.connectionString, 'platform-url');
-        assert.equal(data.database, 'tenant');
-        assert.equal(organization.storage, undefined);
-    });
-}
-test('configured storage preserves explicitly requested database', async () => {
-    const data = { organization_id: 'platform', database: 'new-tenant' };
-    assert.equal((await route(config, data, config)).connectionString, 'platform-url');
-    assert.equal(data.database, 'new-tenant');
-});
-test('configured fallback can route tenants to a shared database', async () => {
-    const data = { organization_id: 'tenant' };
-    const fallbackConfig = {
-        ...config,
-        organizationStorageFallback: { database: 'shared-database' }
-    };
-    assert.equal((await route({}, data, fallbackConfig)).connectionString, 'platform-url');
-    assert.equal(data.database, 'shared-database');
-});
-test('file fallback always keeps the tenant database', async () => {
-    const data = { organization_id: 'tenant', array: 'files' };
-    const fallbackConfig = {
-        ...config,
-        organizationStorageFallback: { database: 'shared-database' }
-    };
-    assert.equal((await route({}, data, fallbackConfig)).connectionString, 'platform-url');
-    assert.equal(data.database, 'tenant');
-});
-test('configured fallback can be disabled', async () => {
-    const fallbackConfig = {
-        ...config,
-        organizationStorageFallback: false
-    };
-    await assert.rejects(
-        route({}, { organization_id: 'tenant' }, fallbackConfig),
-        /fallback is disabled/
-    );
-});
-test('tenant storage missing a provider still reports a configuration error', async () => {
-    await assert.rejects(route({bootstrapStorage: {name:'invalid'}}, {organization_id:'tenant'}, config), /not configured/);
-});
-test('missing server storage reports an error', async () => {
-    await assert.rejects(route({}, {organization_id:'tenant'}, {organization_id:'platform'}), /Server storage is not configured/);
+test('an explicitly selected logical namespace is independent of provider fallback', async () => {
+    const data = await route({}, { method: 'object.read', organization_id: 'tenant', storage: 'development', database: 'website', array: 'files' });
+    assert.equal(data.storage, 'development');
+    assert.equal(data.database, 'website');
 });
 
 test('bootstrapStorage takes precedence and retains native credentials', async () => {

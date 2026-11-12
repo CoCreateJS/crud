@@ -61,7 +61,8 @@
     "@cocreate/config": "^2.0.1",
     "@cocreate/utils": "^2.0.2",
     "@cocreate/indexeddb": "^2.0.1",
-    "@cocreate/socket": "^3.0.0"
+    "@cocreate/socket": "^3.0.0",
+    "@cocreate/db": "^0.0.0-development"
   },
   "devDependencies": {
     "@cocreate/webpack": "^2.0.1"

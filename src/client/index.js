@@ -101,6 +101,9 @@ const CoCreateCRUD = {
             data.database = this.database;
         }
 
+        const forTransport = payload => payload?.method === 'object.update' && Array.isArray(payload.object)
+            ? { ...payload, object: payload.object.map(({ $update, ...changes }) => changes) }
+            : payload;
         let response;
         if (
             isBrowser && dbInstance && options.cache !== false
@@ -113,7 +116,7 @@ const CoCreateCRUD = {
                 (type && response?.[type]?.length)
             ) {
                 if (response?.object && response?.object[0] && response?.object[0]?.organization_id) {
-                    this.socket.send(response);
+                    this.socket.send(forTransport(response));
                     return response;
                 }
             } else if (
@@ -126,7 +129,7 @@ const CoCreateCRUD = {
             }
         }
 
-        return await this.socket.send(response || data);
+        return await this.socket.send(forTransport(response || data));
     },
 
     listen: function (method, callback) {
@@ -263,7 +266,10 @@ const CoCreateCRUD = {
                 !data.synced && this.socket.frameId === data.receiverFrameId
             ) {
                 data.synced = true;
-                await dbInstance.send({ ...data });
+                const cached = { ...data, object: data.object?.map(record => structuredClone(record)) };
+                if (data.method === 'object.update' && data.object?.some(record => record.$set || record.$unset))
+                    cached.upsert = false;
+                await dbInstance.send(cached);
                 // self.socket.sendLocalMessage(response);
             }
         }

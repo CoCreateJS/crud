@@ -13,7 +13,7 @@ The package root resolves to the server implementation in Node and the client im
 
 ## Server
 
-The server runtime accepts a unified payload and routes operations to configured storage adapters. Initialize it with the CoCreate server, then call `send()` with CRUD envelopes.
+The server runtime resolves organization/hostname defaults and sends operations directly to CoCreateDB. Initialize it with the CoCreate server, then call `send()` with CRUD envelopes.
 
 ---
 
@@ -25,7 +25,7 @@ The server runtime accepts a unified payload and routes operations to configured
 * [Usage](#usage)
 A high-performance, multi-tenant database orchestration and synchronization routing layer.
 
-The server runtime accepts a single standardized payload object and routes it to the appropriate storage adapters (one or many) and transports (local drivers, remote sockets).
+The server runtime accepts a standardized payload with organization, logical storage, database, and array scope. CoCreateDB executes it; the existing transports deliver results.
 
 Summary
 - Single, unified payload contract drives all operations (`method` determines behavior).
@@ -182,7 +182,7 @@ await crud.socket.send({
 
 Configuration & tips
 - Ensure `organization_id` is supplied for multi-tenant routing.
-- When targeting multiple storages use the `storage` array; the router runs each adapter in parallel and returns consolidated responses.
+- `storage` is one logical DB namespace, defaulting to `production`; `database` defaults to `app`. Explicit values take precedence over hostname defaults. Array is passed through unchanged.
 - Bootstrap values are loaded through `Config.prompt`. Local configuration under `crud` is then merged over the bootstrap values, followed by scoped platform `servers_config` records with `type: "crud"`. Database configuration has the highest precedence.
 - `organizationStorageFallback` controls routing when an organization has no storage. Its optional `storage` names a platform storage; when omitted, the platform default is used. `database: "$organization_id"` keeps a database per tenant, while another string selects a literal shared database. Set the option to `false` to disable fallback. File requests retain host-owned routing and always use the platform default storage with the requesting organization database when storage fallback is needed.
 - For long-running operations or streaming transports (AI sessions), implement plugin-level session tracking and persist conversation history via `server.crud` on the server side.
@@ -193,17 +193,47 @@ Contributions are welcome. See CONTRIBUTING.md in the repo for guidance and test
 License
 This software is dual-licensed under AGPLv3 and a commercial license. See the repository LICENSE file for details.
 
-## Comparing read storage on a development server
+## Temporary direct CoCreateDB testing
 
-`COCREATE_CRUD_READ_STORAGE=db` forces `object.read` through the registered local DB driver after CRUD bootstrap configuration has loaded and host/database routing has resolved. `COCREATE_CRUD_READ_DATABASE=dev` limits that override to the `dev` database. Every array in that database uses the selected storage, including nested file rendering and data reads. Other databases and create/update/delete requests keep their configured routing. With no read-storage override, normal configured storage selection applies; the provider is not hardcoded to MongoDB.
+The dispatcher calls the imported DB service directly for every CRUD operation, including bootstrap reads. It does not call GetDriver. Storage names are logical namespaces and are preserved. Normal response delivery and mutation events remain in place. Provider helpers are retained for a later persistence pass.
 
-For example, start the server with its existing data directory and an explicit benchmark scope:
+This is uncommitted integration-testing code, not the finalized storage architecture. The CoCreate Server entry point defaults `COCREATE_DB_DIRECTORY` to the existing sibling `CoCreateDB` directory for this test; an explicitly configured directory still takes precedence. Start normally with `yarn start` from CoCreate Server. No provider-selection environment variables are required. The selected DB must contain the organization, configuration, and authorization records needed by the applications; records are not copied automatically.
 
-```sh
-COCREATE_DB_DIRECTORY=/path/to/existing/db \
-COCREATE_CRUD_READ_STORAGE=db \
-COCREATE_CRUD_READ_DATABASE=dev \
-node src/index.js
-```
 
-Restart without `COCREATE_CRUD_READ_STORAGE` to restore the configured default. Use the same file contents, server settings, warmup, HTTP client, and paths for both runs. This override changes read routing only; it does not copy data or synchronize storage providers.
+Trusted noninteractive callers can use `init(server, { config: bootstrapConfig })`
+to provide `organization_id`, optional `host`, and bootstrap `storage` directly.
+This skips configuration prompts and uses the existing organization resolution,
+configuration lookup, driver dispatch, response, and mutation-event paths. The
+normal `init(server)` behavior is unchanged. The CLI uses this API for `coc crud`.
+
+Standalone callers may omit the server context: `init(undefined, { config })` owns
+its local event context and response return. The DB provider uses a registered
+instance first, then configured storage modules. If neither exists, CRUD initializes
+the local CoCreateDB adapter itself. Storage location belongs to this service:
+`COCREATE_DB_DIRECTORY`, configured `db.directory`, `crud.directory`, or
+`storage.directory`, then an existing `CoCreateDB` folder in the working directory
+or an ancestor workspace. Outside a workspace, the fallback is `.cocreate/db`.
+Configured relative paths resolve from `configPath` when supplied. This makes the
+same envelope sufficient for CLI callers while preserving a running server's
+previously registered distributed DB instance.
+
+### CoCreateDB update results
+
+The DB driver returns changed-field `$set`/`$unset` patches for existing-object
+updates, with `_id` and routing references. Reads and creates remain complete
+records. Receivers merge patches, and browser cache-only `$update` snapshots stay
+out of socket transport. Incoming socket patches are cloned for cache sync and
+are not upserted into incomplete browser records when their base is missing.
+
+### Direct DB hierarchy routing
+
+CRUD imports CoCreateDB directly and uses the server DB instance/proxy when
+provided. The main dispatch and initialization do not call GetDriver. Existing
+driver/provider helper APIs are retained for a later persistence pass.
+
+The request organization_id remains the tenant scope. Explicit storage/database
+values win; a hostname fills missing values, followed by production/app defaults.
+Storage is a logical DB hierarchy name, never a provider selector. Array is
+forwarded unchanged, with no hostname override or default. Internal organization
+lookups use production/app and disable hostname fallback explicitly. A configured
+organization can bootstrap local CRUD before organization or key records exist.
