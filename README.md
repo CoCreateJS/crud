@@ -192,3 +192,18 @@ Contributions are welcome. See CONTRIBUTING.md in the repo for guidance and test
 
 License
 This software is dual-licensed under AGPLv3 and a commercial license. See the repository LICENSE file for details.
+
+## Comparing read storage on a development server
+
+`COCREATE_CRUD_READ_STORAGE=db` forces `object.read` through the registered local DB driver after CRUD bootstrap configuration has loaded and host/database routing has resolved. `COCREATE_CRUD_READ_DATABASE=dev` limits that override to the `dev` database. Every array in that database uses the selected storage, including nested file rendering and data reads. Other databases and create/update/delete requests keep their configured routing. With no read-storage override, normal configured storage selection applies; the provider is not hardcoded to MongoDB.
+
+For example, start the server with its existing data directory and an explicit benchmark scope:
+
+```sh
+COCREATE_DB_DIRECTORY=/path/to/existing/db \
+COCREATE_CRUD_READ_STORAGE=db \
+COCREATE_CRUD_READ_DATABASE=dev \
+node src/index.js
+```
+
+Restart without `COCREATE_CRUD_READ_STORAGE` to restore the configured default. Use the same file contents, server settings, warmup, HTTP client, and paths for both runs. This override changes read routing only; it does not copy data or synchronize storage providers.

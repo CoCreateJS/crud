@@ -11,18 +11,28 @@ const helper = source.slice(helperStart, source.indexOf('\nfunction normalizeOrg
 const sendStart = source.indexOf('async function send(data)');
 const dispatcher = source.slice(sendStart, source.indexOf('\n/**', sendStart));
 
-function fixture({ deliver, driver } = {}) {
+function fixture({ deliver, driver, env = {}, ready = true } = {}) {
     const sent = [];
     const errors = [];
     const events = new EventEmitter();
+    events.env = env;
     const changes = [];
+    const storageLookups = [];
+    const driverLookups = [];
     events.on('crud-event', data => changes.push(data));
     const send = vm.runInNewContext(`${helper}\n${dispatcher}\nsend`, {
         server: { send(data) { sent.push(data); return deliver?.(data); } },
         config: { organization_id: 'platform' },
+        readRoutingReady: ready,
         getOrganization: async () => ({}),
-        getStorage: async () => ({ provider: 'mock', secret: 'storage-secret' }),
-        getDriver: async () => ({ send: driver || (async data => ({ ...data, object: [{ _id: 'record' }] })) }),
+        getStorage: async (...args) => {
+            storageLookups.push(args);
+            return { provider: 'mock', secret: 'storage-secret' };
+        },
+        getDriver: async provider => {
+            driverLookups.push(provider);
+            return { send: driver || (async data => ({ ...data, object: [{ _id: 'record' }] })) };
+        },
         includesFileArray: () => false,
         isPlatformArray: () => false,
         resolveOrganizationStorageFallback: () => null,
@@ -30,8 +40,26 @@ function fixture({ deliver, driver } = {}) {
         process: events,
         console: { error: (...args) => errors.push(args) }
     });
-    return { send, sent, errors, changes };
+    return { send, sent, errors, changes, storageLookups, driverLookups };
 }
+
+test('storage db dispatches directly to its registered local driver without an API lookup', async () => {
+    const received = [];
+    const f = fixture({ driver: async data => {
+        received.push(data);
+        return { ...data, object: [{ _id: 'local-db-record' }] };
+    } });
+    const result = await f.send({
+        method: 'object.read', organization_id: 'tenant', database: 'tenant', array: 'files', storage: 'db'
+    });
+
+    assert.equal(result.object[0]._id, 'local-db-record');
+    assert.deepEqual(f.driverLookups, ['db']);
+    assert.equal(f.storageLookups.length, 0);
+    assert.equal(received[0].organization_id, 'tenant');
+    assert.equal(received[0].database, 'tenant');
+    assert.equal(received[0].array, 'files');
+});
 
 test('reads return their result without triggering mutation listeners', async () => {
     const f = fixture();
@@ -98,4 +126,46 @@ test('driver failures return an error without exposing storage credentials', asy
     assert.equal(result.error, 'database failed');
     assert.equal(result.storageConfig, undefined);
     assert.equal(f.sent[0].storageConfig, undefined);
+});
+
+
+test('process read override covers every array in the selected database', async () => {
+    const f = fixture({ env: {
+        COCREATE_CRUD_READ_STORAGE: 'db', COCREATE_CRUD_READ_DATABASE: 'dev'
+    } });
+    for (const array of ['files', 'keys', 'application-data']) {
+        const response = await f.send({
+            method: 'object.read', organization_id: 'tenant', database: 'dev', array, storage: 'existing'
+        });
+        assert.equal(response.storage, 'db');
+    }
+    assert.deepEqual(f.driverLookups, ['db', 'db', 'db']);
+    assert.equal(f.storageLookups.length, 0);
+});
+
+test('scoped read override preserves other databases and all mutations', async () => {
+    const f = fixture({ env: {
+        COCREATE_CRUD_READ_STORAGE: 'db', COCREATE_CRUD_READ_DATABASE: 'dev'
+    } });
+    await f.send({ method: 'object.read', organization_id: 'tenant', database: 'platform', array: 'organizations' });
+    for (const method of ['object.create', 'object.update', 'object.delete'])
+        await f.send({ method, organization_id: 'tenant', database: 'dev', array: 'files' });
+    assert.deepEqual(f.driverLookups, ['mock', 'mock', 'mock', 'mock']);
+    assert.equal(f.storageLookups.length, 4);
+});
+
+test('unscoped read override is opt-in and can apply across databases', async () => {
+    const f = fixture({ env: { COCREATE_CRUD_READ_STORAGE: 'db' } });
+    await f.send({ method: 'object.read', organization_id: 'tenant', array: 'files' });
+    assert.deepEqual(f.driverLookups, ['db']);
+    const defaults = fixture();
+    await defaults.send({ method: 'object.read', organization_id: 'tenant', array: 'files' });
+    assert.deepEqual(defaults.driverLookups, ['mock']);
+});
+
+
+test('read override stays inactive while CRUD loads its bootstrap configuration', async () => {
+    const f = fixture({ ready: false, env: { COCREATE_CRUD_READ_STORAGE: 'db' } });
+    await f.send({ method: 'object.read', organization_id: 'tenant', database: 'dev', array: 'servers_config' });
+    assert.deepEqual(f.driverLookups, ['mock']);
 });

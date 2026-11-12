@@ -36,6 +36,7 @@ let server = null;
  */
 let config = null;
 let initialized = false;
+let readRoutingReady = false;
 let getOrganization = null;
 let crudServer = null;
 
@@ -143,6 +144,7 @@ export async function init(Server) {
     crudServer.getOrganization = getOrganization;
 
     await loadCrudConfig();
+    readRoutingReady = true;
 
     const types = ['storage', 'database', 'array', 'index', 'object'];
     const methods = ['create', 'read', 'update', 'delete'];
@@ -213,6 +215,15 @@ async function send(data) {
             data.database = data.organization_id;
         }
 
+        // Opt-in process-local read routing for storage comparisons. Apply it
+        // after host/database resolution so a benchmark can target one database.
+        const readStorage = process.env?.COCREATE_CRUD_READ_STORAGE?.trim();
+        const readDatabase = process.env?.COCREATE_CRUD_READ_DATABASE?.trim();
+        if (readRoutingReady && readStorage && data.method === 'object.read' &&
+            (!readDatabase || readDatabase === data.database)) {
+            data.storage = readStorage;
+        }
+
         const filterStartingIndex =
             data.filter?.startingIndex ?? data.filter?.index ?? 0;
 
@@ -221,6 +232,15 @@ async function send(data) {
             : [undefined];
 
         for (let i = 0; i < storageNames.length; i++) {
+            if (storageNames[i] === 'db') {
+                const driver = await getDriver('db');
+                if (!driver || typeof driver.send !== 'function') {
+                    throw new Error('The local DB driver is not registered.');
+                }
+                data = await driver.send(data);
+                continue;
+            }
+
             let storage = await getStorage(
                 organization,
                 data.organization_id,
