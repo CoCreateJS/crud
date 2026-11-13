@@ -108,6 +108,7 @@ export class GetOrganization {
             organization_id: config.organization_id
         };
 
+
         if (data.organization_id) {
             query.object = [{ _id: data.organization_id }];
         } else if (data.host) {

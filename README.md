@@ -193,29 +193,26 @@ Contributions are welcome. See CONTRIBUTING.md in the repo for guidance and test
 License
 This software is dual-licensed under AGPLv3 and a commercial license. See the repository LICENSE file for details.
 
-## Temporary direct CoCreateDB testing
+## CoCreateDB integration
 
-The dispatcher calls the imported DB service directly for every CRUD operation, including bootstrap reads. It does not call GetDriver. Storage names are logical namespaces and are preserved. Normal response delivery and mutation events remain in place. Provider helpers are retained for a later persistence pass.
+Cluster initializes CoCreateDB with the server object. CoCreateDB owns directory
+configuration and attaches its instance as `server.db`. CRUD resolves organization
+and host context, then calls `server.db.send()` for each request. It does not
+resolve a directory, construct a database, or route through storage providers.
+Storage names remain logical namespaces. CRUD response delivery and mutation
+events remain in place.
 
-This is uncommitted integration-testing code, not the finalized storage architecture. The CoCreate Server entry point defaults `COCREATE_DB_DIRECTORY` to the existing sibling `CoCreateDB` directory for this test; an explicitly configured directory still takes precedence. Start normally with `yarn start` from CoCreate Server. No provider-selection environment variables are required. The selected DB must contain the organization, configuration, and authorization records needed by the applications; records are not copied automatically.
+CoCreateDB prompts for `db.directory` when no directory is configured; a blank
+answer uses the current working directory. `COCREATE_DB_DIRECTORY` can override
+the configured path. Optional `db.persistence` is passed to CoCreateDB's
+persistence adapter; without it, data is persisted locally in the configured
+directory. The selected DB must contain the organization, configuration, and
+authorization records needed by the applications; records are not copied
+automatically.
 
 
-Trusted noninteractive callers can use `init(server, { config: bootstrapConfig })`
-to provide `organization_id`, optional `host`, and bootstrap `storage` directly.
-This skips configuration prompts and uses the existing organization resolution,
-configuration lookup, driver dispatch, response, and mutation-event paths. The
-normal `init(server)` behavior is unchanged. The CLI uses this API for `coc crud`.
-
-Standalone callers may omit the server context: `init(undefined, { config })` owns
-its local event context and response return. The DB provider uses a registered
-instance first, then configured storage modules. If neither exists, CRUD initializes
-the local CoCreateDB adapter itself. Storage location belongs to this service:
-`COCREATE_DB_DIRECTORY`, configured `db.directory`, `crud.directory`, or
-`storage.directory`, then an existing `CoCreateDB` folder in the working directory
-or an ancestor workspace. Outside a workspace, the fallback is `.cocreate/db`.
-Configured relative paths resolve from `configPath` when supplied. This makes the
-same envelope sufficient for CLI callers while preserving a running server's
-previously registered distributed DB instance.
+The CLI can initialize a local CoCreateDB instance directly, then pass that
+instance to CRUD. Server CRUD requires an initialized `server.db` service.
 
 ### CoCreateDB update results
 
@@ -227,9 +224,10 @@ are not upserted into incomplete browser records when their base is missing.
 
 ### Direct DB hierarchy routing
 
-CRUD imports CoCreateDB directly and uses the server DB instance/proxy when
-provided. The main dispatch and initialization do not call GetDriver. Existing
-driver/provider helper APIs are retained for a later persistence pass.
+CRUD requires an initialized `server.db` instance, or a DB service passed by a
+standalone caller. The main dispatch calls `db.send()` after organization and
+host routing. CRUD does not resolve a directory, construct a DB, or import its
+provider/driver helpers. Their source files remain available for later work.
 
 The request organization_id remains the tenant scope. Explicit storage/database
 values win; a hostname fills missing values, followed by production/app defaults.

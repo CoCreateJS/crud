@@ -18,15 +18,8 @@
 
 import Config from '@cocreate/config';
 import { EventEmitter } from 'node:events';
-import { createDB, resolveDirectory } from '@cocreate/db';
 import { dotNotationToObject, sortData } from "@cocreate/utils";
 import GetOrganization from './getOrganization.js';
-import { getDriver, registerDriver, drivers } from './getDriver.js';
-import { getStorage as resolveStorage } from './getStorage.js';
-import {
-    defaultOrganizationStorageFallback,
-    resolveOrganizationStorageFallback
-} from './storageFallback.js';
 
 let server = null;
 let db = null;
@@ -52,18 +45,6 @@ function sendToServer(data) {
     }
 }
 
-function normalizeOrganizationStorageFallback() {
-    let configuredStorageFallback = config.organizationStorageFallback;
-    if (typeof configuredStorageFallback === 'string') {
-        try {
-            configuredStorageFallback = JSON.parse(configuredStorageFallback);
-        } catch { }
-    }
-    config.organizationStorageFallback = configuredStorageFallback ?? {
-        ...defaultOrganizationStorageFallback
-    };
-}
-
 /**
  * Merges module configuration and scoped platform database overrides over the
  * bootstrap configuration loaded by Config.prompt().
@@ -81,8 +62,6 @@ export async function loadCrudConfig() {
 
     if (systemConfig) dotNotationToObject(systemConfig, config);
     if (databaseConfig) dotNotationToObject(databaseConfig, config);
-    normalizeOrganizationStorageFallback();
-
     return config;
 }
 
@@ -107,41 +86,13 @@ export async function init(Server, options = {}) {
         'organization_id': { prompt: 'Enter your organization_id: ' },
         'host': { prompt: 'Enter your host: ' }
     });
-    normalizeOrganizationStorageFallback();
-
     if (!config.organization_id) throw new Error('Missing bootstrap organization_id.');
 
-    db = server.DB ?? createDB({
-        directory: await resolveDirectory({
-            directory: config.db?.directory ?? config.crud?.directory ?? config.storage?.directory,
-            configPath: config.configPath
-        }),
-        memoryCache: false
-    });
+    db = server.db ?? options.db;
+    if (!db || typeof db.send !== 'function')
+        throw new Error('CoCreateDB must be initialized on the server or passed to CrudServer.');
 
-    crudServer = {
-        config,
-        send,
-        getStorage,
-        /**
-         *
- * @public
- * @environment server
- */
-        getDriver,
-        /**
-         *
- * @public
- * @environment server
- */
-        registerDriver,
-        /**
-         *
- * @public
- * @environment server
- */
-        drivers
-    };
+    crudServer = { config, send };
 
     getOrganization = GetOrganization.init(crudServer);
     crudServer.getOrganization = getOrganization;
@@ -210,15 +161,17 @@ async function send(data) {
         data.storage ||= 'production';
         data.database ||= 'app';
 
+
         const filterStartingIndex =
             data.filter?.startingIndex ?? data.filter?.index ?? 0;
 
-        delete data.storageConfig;
-        data = await db.send(data);
+        delete data.persistenceConfig;
+        data = await db.send(data, { organization });
+
 
         applyFilterMetadata(data, filterStartingIndex);
 
-        delete data.storageConfig;
+        delete data.persistenceConfig;
 
         if (data.organization_id === config.organization_id &&
             requestOrganizationId !== data.organization_id) {
@@ -234,7 +187,7 @@ async function send(data) {
         }
         return data;
     } catch (error) {
-        delete data.storageConfig;
+        delete data.persistenceConfig;
         if (typeof errorHandler === 'function') {
             errorHandler(data, error);
         } else {
@@ -243,19 +196,6 @@ async function send(data) {
         sendToServer(data);
         return data;
     }
-}
-
-/**
- * Resolves the organization bootstrap storage or a named tenant API storage.
- * @public
- * @environment server
- */
-async function getStorage(organization, organizationId, name) {
-    return await resolveStorage({
-        organization,
-        organizationId,
-        name
-    });
 }
 
 /**
@@ -308,11 +248,7 @@ function applyFilterMetadata(data, startingIndex) {
 const serverModule = {
     init,
     config,
-    send,
-    getStorage,
-    getDriver,
-    registerDriver,
-    drivers
+    send
 };
 
 export { serverModule as crudServer };

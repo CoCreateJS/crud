@@ -152,7 +152,7 @@ test('direct DB dispatch does not pass old storage credentials to DB', async () 
 
 test('bootstrap selects DB and publishes CRUD before awaiting database config', () => {
     const initSource = source.slice(source.indexOf('export async function init('), source.indexOf('async function send(data)'));
-    assert.match(initSource, /db = server.DB \?\? createDB/);
+    assert.match(initSource, /db = server\.db \?\? options\.db/);
     assert.equal(initSource.includes("getDriver('db'"), false);
     assert.ok(initSource.indexOf('server.crud = crudServer') < initSource.indexOf('await loadCrudConfig()'));
     assert.equal(initSource.includes('getDriver(primaryStorage.provider)'), false);
