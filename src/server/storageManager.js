@@ -48,7 +48,7 @@ const driverOrgRegistry = new Map();
 const pendingRequests = new Map();
 
 /**
- * Cached server config document resolved via Config.query.
+ * Cached config document resolved via Config.query.
  */
 let cachedServerConfig = null;
 
@@ -443,7 +443,7 @@ async function resolveDriver(data) {
     const host = driverConfig.host || cachedServerConfig.host || data.host;
 
     if (!host) {
-        throw new Error(`Unable to resolve host endpoint for provider "${driverKey}". Driver file not present in .storage/ and host not defined in servers_config.`);
+        throw new Error(`Unable to resolve host endpoint for provider "${driverKey}". Driver file not present in .storage/ and host not defined in configs.`);
     }
 
     const scriptString = await fetchDriverScript(host, scriptPath, organizationId);
