@@ -34,7 +34,7 @@ export const drivers = new Map();
 
 function logPrefix() {
     const workerId = process.env.WORKER_ID;
-    return `[@cocreate/crud/server] ${workerId ? `[WORKER ${workerId}]` : '[MASTER]'}`;
+    return `[@cocreate/crud/server] ${workerId ? `[WORKER ${workerId}]` : '[PRIMARY]'}`;
 }
 
 /**
